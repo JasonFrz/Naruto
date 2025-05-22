@@ -3,26 +3,26 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GLB Viewer - Naruto</title>
+  <title>Ruangan Hokage Ke-7</title>
   <style>
-    body { margin: 0; overflow: hidden; }
-    canvas { display: block; }
-  </style>
-
-  <!-- ✅ Import Map: DEKLARASI WAJIB SEBELUM main.js -->
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-      "three/examples/jsm/loaders/GLTFLoader.js": "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js",
-      "three/examples/jsm/controls/OrbitControls.js": "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js"
+    body { margin: 0; overflow: hidden; background: black; }
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: sans-serif;
+      font-size: 24px;
+      color: white;
+      background: rgba(0, 0, 0, 0.75);
+      padding: 1rem 2rem;
+      border-radius: 8px;
+      z-index: 999;
     }
-  }
-  </script>
+  </style>
 </head>
 <body>
-
-  <!-- ✅ Harus diletakkan setelah importmap -->
+  <div id="loading">Loading model...</div>
   <script type="module" src="main.js"></script>
 </body>
 </html>

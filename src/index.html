@@ -2,8 +2,52 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>GLB Viewer</title>
-  <style>body { margin: 0; overflow: hidden; }</style>
+  <title>GLB Viewer with Desktop UI</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: sans-serif; }
+    #desktopUI {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80vw;
+      height: 80vh;
+      background-image: url('../asset/background.jpg'); /* ganti dengan background kamu */
+      background-size: cover;
+      border: 3px solid #222;
+      display: none;
+      z-index: 10;
+      box-shadow: 0 0 20px #000;
+      cursor: default;
+    }
+    .shortcut {
+      position: absolute;
+      width: 64px;
+      height: 64px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: white;
+      font-size: 12px;
+      text-shadow: 1px 1px 2px #000;
+    }
+    .shortcut img {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 4px;
+    }
+    #shutdownBtn {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      padding: 8px 16px;
+      background: crimson;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+      border-radius: 4px;
+    }
+  </style>
   <script type="importmap">
     {
       "imports": {
@@ -15,6 +59,21 @@
   </script>
 </head>
 <body>
+  <div id="desktopUI" tabindex="0">
+    <div class="shortcut" style="top: 20px; left: 20px;">
+      <img src="../asset/google.png" alt="Chrome">
+      <span>Google</span>
+    </div>
+    <div class="shortcut" style="top: 100px; left: 20px;">
+      <img src="../asset/data.png" alt="VSCode">
+      <span>Data</span>
+    </div>
+    <div class="shortcut" style="top: 180px; left: 20px;">
+      <img src="../asset/folder.png" alt="Folder">
+      <span>Folder</span>
+    </div>
+    <button id="shutdownBtn">Shutdown</button>
+  </div>
   <script type="module" src="./main.js"></script>
 </body>
 </html>

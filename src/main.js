@@ -38,53 +38,70 @@ const mouse = new THREE.Vector2();
 let ceilingLamp = null;
 let monitor = null;
 let lampOn = false;
+let monitorOpen = false;
 
 const desktopUI = document.getElementById('desktopUI');
 const shutdownBtn = document.getElementById('shutdownBtn');
+const ninjaInfo = document.getElementById('ninjaInfo');
 
 shutdownBtn.addEventListener('click', () => {
   desktopUI.style.display = 'none';
-  controls.enabled = true; // Aktifkan kembali rotasi kamera
+  monitorOpen = false;
+  ninjaInfo.style.display = 'none';
+});
+
+document.getElementById('shortcutVSCode').addEventListener('click', () => {
+  ninjaInfo.style.display = 'block';
+  ninjaInfo.innerHTML = `
+    <h2>📚 Data Ninja Era Boruto</h2>
+    <div class="ninja-card">
+      <img src="../asset/naruto.jpg" alt="Naruto Uzumaki">
+      <div>
+        <strong>Nama:</strong> Naruto Uzumaki<br>
+        <strong>Tier:</strong> S<br>
+        <strong>Misi:</strong> 400+ S-rank<br>
+        <strong>Hasil Ujian Chunin:</strong> Lulus (dengan kekacauan 😅)
+      </div>
+    </div>
+    <div class="ninja-card">
+      <img src="../asset/boruto.jpg" alt="Boruto Uzumaki">
+      <div>
+        <strong>Nama:</strong> Boruto Uzumaki<br>
+        <strong>Tier:</strong> A<br>
+        <strong>Misi:</strong> 80+ B-rank<br>
+        <strong>Hasil Ujian Chunin:</strong> Tidak Lulus (Kecurangan)
+      </div>
+    </div>
+    <!-- Tambahkan ninja lainnya di sini -->
+  `;
 });
 
 const loader = new GLTFLoader();
 loader.load('../glb/narutoandroom.glb', gltf => {
   const model = gltf.scene;
   scene.add(model);
-
   model.traverse(obj => {
     if (obj.isMesh) console.log("Objek ditemukan:", obj.name);
   });
 
   ceilingLamp = model.getObjectByName("model_1");
   monitor = model.getObjectByName("model_2");
-
-  if (!ceilingLamp) console.warn("Objek 'model_1' tidak ditemukan.");
-  if (!monitor) console.warn("Objek 'model_2' tidak ditemukan.");
 });
 
 loader.load('../glb/naruto.gltf', gltf => {
   const narutoModel = gltf.scene;
   narutoModel.position.set(2, 0, 0);
-  narutoModel.scale.set(1, 1, 1);
   scene.add(narutoModel);
 });
 
 window.addEventListener('click', event => {
-  if (desktopUI.style.display === 'block') return; // Jangan deteksi klik di scene jika desktop aktif
-
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
 
-  const clickableObjects = [];
-  if (ceilingLamp) clickableObjects.push(ceilingLamp);
-  if (monitor) clickableObjects.push(monitor);
-
-  const intersects = raycaster.intersectObjects(clickableObjects, true);
+  const intersects = raycaster.intersectObjects([ceilingLamp, monitor].filter(Boolean), true);
   if (intersects.length > 0) {
     const clicked = intersects[0].object;
-
     if (clicked === ceilingLamp || ceilingLamp?.children.includes(clicked)) {
       lampOn = !lampOn;
       pointLight.visible = lampOn;
@@ -92,14 +109,11 @@ window.addEventListener('click', event => {
       dirLight.visible = lampOn;
       ambientLight.intensity = lampOn ? 0.5 : 0.1;
       scene.background = new THREE.Color(lampOn ? 0xeeeeee : 0x000000);
-      console.log(`💡 Lampu ${lampOn ? "DINYALAKAN" : "DIMATIKAN"}`);
     }
 
     if (clicked === monitor || monitor?.children.includes(clicked)) {
       desktopUI.style.display = 'block';
-      controls.enabled = false; // Nonaktifkan rotasi kamera
-      desktopUI.focus();
-      console.log("🖥️ Monitor diklik - UI komputer ditampilkan");
+      monitorOpen = true;
     }
   }
 });
@@ -112,6 +126,8 @@ window.addEventListener('resize', () => {
 
 function animate() {
   requestAnimationFrame(animate);
+  if (!monitorOpen) controls.enabled = true;
+  else controls.enabled = false;
   controls.update();
   renderer.render(scene, camera);
 }

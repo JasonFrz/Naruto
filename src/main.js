@@ -74,6 +74,20 @@ loader.load(
   xhr => console.log(`Loading: ${(xhr.loaded / xhr.total * 100).toFixed(1)}%`),
   err => console.error('Gagal memuat GLB:', err)
 );
+// === Load Naruto GLB ===
+loader.load(
+  '../glb/naruto.gltf', // Make sure the path is correct
+  gltf => {
+    const narutoModel = gltf.scene;
+    narutoModel.position.set(2, 0, 0);
+    narutoModel.scale.set(1, 1, 1); // Tweak this if he's invisible
+    scene.add(narutoModel);
+  },
+  xhr => console.log(`Loading Naruto GLTF: ${(xhr.loaded / xhr.total * 100).toFixed(1)}%`),
+  err => console.error('Error loading Naruto GLTF:', err)
+);
+
+
 
 // === Toggle lampu saat diklik ===
 window.addEventListener('click', event => {

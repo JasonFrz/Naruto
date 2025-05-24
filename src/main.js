@@ -88,9 +88,9 @@ loader.load('../glb/narutoandroom.glb', gltf => {
   monitor = model.getObjectByName("model_2");
 });
 
-loader.load('../glb/naruto.gltf', gltf => {
+loader.load('../glb/naruto.glb', gltf => {
   const narutoModel = gltf.scene;
-  narutoModel.position.set(2, 0, 0);
+  narutoModel.position.set(0, 0, 0);
   scene.add(narutoModel);
 });
 

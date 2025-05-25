@@ -10,7 +10,6 @@ camera.position.set(2, 2, 5);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-// Enable shadow mapping
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.shadowMap.autoUpdate = true;
@@ -66,13 +65,15 @@ let ceilingLamp = null;
 let monitor = null;
 let lampOn = false;
 let monitorOpen = false;
-let cameraLocked = false; // New variable to track camera lock state
+let cameraLocked = false;
 
 let isRasengan = true;
 let rasenganModel = null;
 let rasenshurikenModel = null;
 let rasengan = null;
 const rasenganSpeed = 0.03;
+
+let gamaBunta = null;  // Model Gama Bunta
 
 const desktopUI = document.getElementById('desktopUI');
 const shutdownBtn = document.getElementById('shutdownBtn');
@@ -81,7 +82,7 @@ const ninjaInfo = document.getElementById('ninjaInfo');
 shutdownBtn.addEventListener('click', () => {
   desktopUI.style.display = 'none';
   monitorOpen = false;
-  cameraLocked = false; // Unlock camera when shutting down
+  cameraLocked = false;
   ninjaInfo.style.display = 'none';
 });
 
@@ -117,7 +118,7 @@ const loader = new GLTFLoader();
 loader.load('../glb/narutoandroom.glb', gltf => {
   const model = gltf.scene;
   scene.add(model);
-  
+
   model.traverse(obj => {
     if (obj.isMesh) {
       obj.castShadow = true;
@@ -146,7 +147,7 @@ loader.load('../glb/narutoandroom.glb', gltf => {
 loader.load('../glb/naruto.glb', gltf => {
   const narutoModel = gltf.scene;
   narutoModel.position.set(0, 0, 0);
-  
+
   narutoModel.traverse(obj => {
     if (obj.isMesh) {
       obj.castShadow = true;
@@ -162,8 +163,32 @@ loader.load('../glb/naruto.glb', gltf => {
       }
     }
   });
-  
+
   scene.add(narutoModel);
+
+  // Load Gama Bunta kodok.glb di samping Naruto
+loader.load('../glb/kodok.glb', gltf => {
+  gamaBunta = gltf.scene;
+  gamaBunta.position.set(60, 0, 0);
+  gamaBunta.scale.set(0.07, 0.07, 0.07);  // ukuran diperkecil di sini
+  gamaBunta.traverse(obj => {
+    if (obj.isMesh) {
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(mat => {
+            mat.shadowSide = THREE.DoubleSide;
+          });
+        } else {
+          obj.material.shadowSide = THREE.DoubleSide;
+        }
+      }
+    }
+  });
+  scene.add(gamaBunta);
+}, undefined, console.error);
+
 });
 
 // Load rasengan function
@@ -232,7 +257,8 @@ window.addEventListener('click', event => {
     if (clicked === monitor || monitor?.children.includes(clicked)) {
       desktopUI.style.display = 'block';
       monitorOpen = true;
-      cameraLocked = true; // Lock camera when monitor is clicked
+      cameraLocked = true;
+      controls.enabled = false;
     }
 
     if (rasengan && (clicked === rasengan || rasengan.children.includes(clicked))) {
@@ -256,6 +282,15 @@ window.addEventListener('click', event => {
       isRasengan = !isRasengan;
     }
   }
+});
+
+// --- Shutdown button event ---
+shutdownBtn.addEventListener('click', () => {
+  desktopUI.style.display = 'none';
+  monitorOpen = false;
+  cameraLocked = false;
+  controls.enabled = true;
+  ninjaInfo.style.display = 'none';
 });
 
 // --- WASD Controls ---
@@ -322,12 +357,8 @@ function animate() {
     }
   }
 
-  // Rotate rasengan/rasenshuriken model slowly on Y axis
-  if (rasengan) {
-    rasengan.rotation.y += rasenganSpeed;
-  }
-
   controls.update();
+
   renderer.render(scene, camera);
 }
 

@@ -1,0 +1,8 @@
+Model Information:
+* title:	free fire gamabunta emote working in prisma 3D
+* source:	https://sketchfab.com/3d-models/free-fire-gamabunta-emote-working-in-prisma-3d-d142c013d749481cb338258554f983a7
+* author:	ROCK FF 99 (https://sketchfab.com/amansoyal781)
+
+Model License:
+* license type:	SKETCHFAB Standard (https://sketchfab.com/licenses)
+* requirements:	Under basic restrictions, use worldwide, on all types of media, commercially or not, and in all types of derivative works

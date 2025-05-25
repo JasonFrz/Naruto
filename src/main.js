@@ -35,10 +35,6 @@ pointLight.shadow.bias = -0.001;
 pointLight.shadow.normalBias = 0.05;
 scene.add(pointLight);
 
-// // Add a helper to visualize the light (remove this later if not needed)
-// const lightHelper = new THREE.PointLightHelper(pointLight, 1);
-// scene.add(lightHelper);
-
 const hemiLight = new THREE.HemisphereLight(0xffffff, 0x222222, 0.8);
 hemiLight.visible = false;
 scene.add(hemiLight);
@@ -62,10 +58,6 @@ dirLight.shadow.bias = -0.001;
 dirLight.shadow.normalBias = 0.05;
 scene.add(dirLight);
 scene.add(dirLight.target);
-
-// Add helper to visualize directional light
-// const dirLightHelper = new THREE.DirectionalLightHelper(dirLight, 3);
-// scene.add(dirLightHelper);
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -187,20 +179,19 @@ window.addEventListener('click', event => {
   const intersects = raycaster.intersectObjects([ceilingLamp, monitor].filter(Boolean), true);
   if (intersects.length > 0) {
     const clicked = intersects[0].object;
-    if (clicked === ceilingLamp || ceilingLamp?.children.includes(clicked)) {
-      lampOn = !lampOn;
-      pointLight.visible = lampOn;
-      hemiLight.visible = lampOn;
-      dirLight.visible = lampOn;
-      lightHelper.visible = lampOn; // Show/hide light helper
-      dirLightHelper.visible = lampOn; // Show/hide directional light helper
-      ambientLight.intensity = lampOn ? 0.3 : 0.05;
-      scene.background = new THREE.Color(lampOn ? 0x333333 : 0x000000);
-      
-      console.log("Light toggled:", lampOn ? "ON" : "OFF");
-      console.log("Point light position:", pointLight.position);
-      console.log("Point light casting shadows:", pointLight.castShadow);
-    }
+   if (clicked === ceilingLamp || ceilingLamp?.children.includes(clicked)) {
+  lampOn = !lampOn;
+  pointLight.visible = lampOn;
+  hemiLight.visible = lampOn;
+  dirLight.visible = lampOn;
+  ambientLight.intensity = lampOn ? 0.3 : 0.05;
+  scene.background = new THREE.Color(lampOn ? 0x333333 : 0x000000);
+
+  console.log("Light toggled:", lampOn ? "ON" : "OFF");
+  console.log("Point light position:", pointLight.position);
+  console.log("Point light casting shadows:", pointLight.castShadow);
+}
+
 
     if (clicked === monitor || monitor?.children.includes(clicked)) {
       desktopUI.style.display = 'block';
@@ -215,24 +206,73 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// --- KEYBOARD CONTROL VARIABLES ---
+const keysPressed = {
+  w: false,
+  a: false,
+  s: false,
+  d: false,
+};
+
+const moveSpeed = 0.1;
+
+window.addEventListener('keydown', event => {
+  const key = event.key.toLowerCase();
+  if (keysPressed.hasOwnProperty(key)) {
+    keysPressed[key] = true;
+  }
+});
+
+window.addEventListener('keyup', event => {
+  const key = event.key.toLowerCase();
+  if (keysPressed.hasOwnProperty(key)) {
+    keysPressed[key] = false;
+  }
+});
+
 function animate() {
   requestAnimationFrame(animate);
-  if (!monitorOpen) controls.enabled = true;
-  else controls.enabled = false;
-  controls.update();
-  renderer.render(scene, camera);
 
-  if (rasengan) {  // Buat speed muter e rasengan
+  if (!monitorOpen) {
+    // Handle WASD camera movement
+    const direction = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
 
-    rasengan.rotation.y += rasenganSpeed;
-    rasengan.rotation.x += rasenganSpeed * 0.2;
+    camera.getWorldDirection(direction);
+    direction.y = 0; // lock y to horizontal plane
+    direction.normalize();
 
-  
+    right.crossVectors(direction, up).normalize();
 
+    if (keysPressed.w) {
+      camera.position.addScaledVector(direction, moveSpeed);
+      controls.target.addScaledVector(direction, moveSpeed);
+    }
+    if (keysPressed.s) {
+      camera.position.addScaledVector(direction, -moveSpeed);
+      controls.target.addScaledVector(direction, -moveSpeed);
+    }
+    if (keysPressed.a) {
+      camera.position.addScaledVector(right, -moveSpeed);
+      controls.target.addScaledVector(right, -moveSpeed);
+    }
+    if (keysPressed.d) {
+      camera.position.addScaledVector(right, moveSpeed);
+      controls.target.addScaledVector(right, moveSpeed);
+    }
   }
 
   controls.enabled = !monitorOpen;
   controls.update();
+
+  if (rasengan) {
+    // Rotate rasengan
+    rasengan.rotation.y += rasenganSpeed * 0.01;
+    rasengan.rotation.x += rasenganSpeed * 0.002;
+  }
+
   renderer.render(scene, camera);
 }
+
 animate();

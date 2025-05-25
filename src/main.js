@@ -10,27 +10,62 @@ camera.position.set(2, 2, 5);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+// Enable shadow mapping
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
+renderer.shadowMap.autoUpdate = true;
 document.body.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.05);
 scene.add(ambientLight);
 
-const pointLight = new THREE.PointLight(0xffffff, 1, 100);
-pointLight.position.set(0, 3, 0);
+const pointLight = new THREE.PointLight(0xffffff, 8, 50, 0.5);
+pointLight.position.set(0, 12, 0);
 pointLight.visible = false;
+// Enable shadow casting for point light
+pointLight.castShadow = true;
+pointLight.shadow.mapSize.width = 2048;
+pointLight.shadow.mapSize.height = 2048;
+pointLight.shadow.camera.near = 1;
+pointLight.shadow.camera.far = 50;
+pointLight.shadow.bias = -0.001;
+pointLight.shadow.normalBias = 0.05;
 scene.add(pointLight);
 
-const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+// // Add a helper to visualize the light (remove this later if not needed)
+// const lightHelper = new THREE.PointLightHelper(pointLight, 1);
+// scene.add(lightHelper);
+
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0x222222, 0.8);
 hemiLight.visible = false;
 scene.add(hemiLight);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-dirLight.position.set(5, 10, 7.5);
+const dirLight = new THREE.DirectionalLight(0xffffff, 3);
+dirLight.position.set(-10, 15, 8);
+dirLight.target.position.set(0, 0, 0);
 dirLight.visible = false;
+// Enable shadow casting for directional light
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 4096;
+dirLight.shadow.mapSize.height = 4096;
+dirLight.shadow.camera.near = 1;
+dirLight.shadow.camera.far = 40;
+// Set shadow camera bounds for directional light - much larger area
+dirLight.shadow.camera.left = -25;
+dirLight.shadow.camera.right = 25;
+dirLight.shadow.camera.top = 25;
+dirLight.shadow.camera.bottom = -25;
+dirLight.shadow.bias = -0.001;
+dirLight.shadow.normalBias = 0.05;
 scene.add(dirLight);
+scene.add(dirLight.target);
+
+// Add helper to visualize directional light
+// const dirLightHelper = new THREE.DirectionalLightHelper(dirLight, 3);
+// scene.add(dirLightHelper);
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -39,6 +74,8 @@ let ceilingLamp = null;
 let monitor = null;
 let lampOn = false;
 let monitorOpen = false;
+let rasengan = null;
+let rasenganSpeed = 3; // You can tweak this anytime
 
 const desktopUI = document.getElementById('desktopUI');
 const shutdownBtn = document.getElementById('shutdownBtn');
@@ -77,22 +114,70 @@ document.getElementById('shortcutVSCode').addEventListener('click', () => {
 });
 
 const loader = new GLTFLoader();
+
 loader.load('../glb/narutoandroom.glb', gltf => {
   const model = gltf.scene;
   scene.add(model);
+  
+  // Enable shadows for all meshes in the room model
   model.traverse(obj => {
-    if (obj.isMesh) console.log("Objek ditemukan:", obj.name);
+    if (obj.isMesh) {
+      console.log("Room object found:", obj.name, "Material:", obj.material?.type);
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+      // Ensure material receives shadows properly
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(mat => {
+            mat.shadowSide = THREE.DoubleSide;
+            if (mat.transparent) mat.transparent = false; // Transparent materials don't receive shadows well
+          });
+        } else {
+          obj.material.shadowSide = THREE.DoubleSide;
+          if (obj.material.transparent) obj.material.transparent = false;
+        }
+      }
+    }
   });
 
   ceilingLamp = model.getObjectByName("model_1");
+  
   monitor = model.getObjectByName("model_2");
+  
+  console.log("Ceiling lamp found:", !!ceilingLamp, "Monitor found:", !!monitor);
 });
 
 loader.load('../glb/naruto.glb', gltf => {
   const narutoModel = gltf.scene;
   narutoModel.position.set(0, 0, 0);
+  
+  // Enable shadows for Naruto model
+  narutoModel.traverse(obj => {
+    if (obj.isMesh) {
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+      // Ensure material receives shadows properly
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(mat => {
+            mat.shadowSide = THREE.DoubleSide;
+          });
+        } else {
+          obj.material.shadowSide = THREE.DoubleSide;
+        }
+      }
+    }
+  });
+  
   scene.add(narutoModel);
 });
+//rasengan e
+loader.load('../glb/rasengan.glb', gltf => {
+  rasengan = gltf.scene;
+  rasengan.position.set(-8.8, 9.9, 13.9);
+  scene.add(rasengan);
+});
+
 
 window.addEventListener('click', event => {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -107,8 +192,14 @@ window.addEventListener('click', event => {
       pointLight.visible = lampOn;
       hemiLight.visible = lampOn;
       dirLight.visible = lampOn;
-      ambientLight.intensity = lampOn ? 0.5 : 0.1;
-      scene.background = new THREE.Color(lampOn ? 0xeeeeee : 0x000000);
+      lightHelper.visible = lampOn; // Show/hide light helper
+      dirLightHelper.visible = lampOn; // Show/hide directional light helper
+      ambientLight.intensity = lampOn ? 0.3 : 0.05;
+      scene.background = new THREE.Color(lampOn ? 0x333333 : 0x000000);
+      
+      console.log("Light toggled:", lampOn ? "ON" : "OFF");
+      console.log("Point light position:", pointLight.position);
+      console.log("Point light casting shadows:", pointLight.castShadow);
     }
 
     if (clicked === monitor || monitor?.children.includes(clicked)) {
@@ -128,6 +219,19 @@ function animate() {
   requestAnimationFrame(animate);
   if (!monitorOpen) controls.enabled = true;
   else controls.enabled = false;
+  controls.update();
+  renderer.render(scene, camera);
+
+  if (rasengan) {  // Buat speed muter e rasengan
+
+    rasengan.rotation.y += rasenganSpeed;
+    rasengan.rotation.x += rasenganSpeed * 0.2;
+
+  
+
+  }
+
+  controls.enabled = !monitorOpen;
   controls.update();
   renderer.render(scene, camera);
 }

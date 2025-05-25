@@ -12,20 +12,20 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 // Enable shadow mapping
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.shadowMap.autoUpdate = true;
 document.body.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
+// --- Lighting ---
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.05);
 scene.add(ambientLight);
 
 const pointLight = new THREE.PointLight(0xffffff, 8, 50, 0.5);
 pointLight.position.set(0, 12, 0);
 pointLight.visible = false;
-// Enable shadow casting for point light
 pointLight.castShadow = true;
 pointLight.shadow.mapSize.width = 2048;
 pointLight.shadow.mapSize.height = 2048;
@@ -43,13 +43,11 @@ const dirLight = new THREE.DirectionalLight(0xffffff, 3);
 dirLight.position.set(-10, 15, 8);
 dirLight.target.position.set(0, 0, 0);
 dirLight.visible = false;
-// Enable shadow casting for directional light
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.width = 4096;
 dirLight.shadow.mapSize.height = 4096;
 dirLight.shadow.camera.near = 1;
 dirLight.shadow.camera.far = 40;
-// Set shadow camera bounds for directional light - much larger area
 dirLight.shadow.camera.left = -25;
 dirLight.shadow.camera.right = 25;
 dirLight.shadow.camera.top = 25;
@@ -59,15 +57,21 @@ dirLight.shadow.normalBias = 0.05;
 scene.add(dirLight);
 scene.add(dirLight.target);
 
+// --- Raycaster and mouse ---
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
+// --- Models & State ---
 let ceilingLamp = null;
 let monitor = null;
 let lampOn = false;
 let monitorOpen = false;
+
+let isRasengan = true;
+let rasenganModel = null;
+let rasenshurikenModel = null;
 let rasengan = null;
-let rasenganSpeed = 3; // You can tweak this anytime
+const rasenganSpeed = 0.03;
 
 const desktopUI = document.getElementById('desktopUI');
 const shutdownBtn = document.getElementById('shutdownBtn');
@@ -101,28 +105,26 @@ document.getElementById('shortcutVSCode').addEventListener('click', () => {
         <strong>Hasil Ujian Chunin:</strong> Tidak Lulus (Kecurangan)
       </div>
     </div>
-    <!-- Tambahkan ninja lainnya di sini -->
   `;
 });
 
+// Loader
 const loader = new GLTFLoader();
 
+// Load room and objects
 loader.load('../glb/narutoandroom.glb', gltf => {
   const model = gltf.scene;
   scene.add(model);
   
-  // Enable shadows for all meshes in the room model
   model.traverse(obj => {
     if (obj.isMesh) {
-      console.log("Room object found:", obj.name, "Material:", obj.material?.type);
       obj.castShadow = true;
       obj.receiveShadow = true;
-      // Ensure material receives shadows properly
       if (obj.material) {
         if (Array.isArray(obj.material)) {
           obj.material.forEach(mat => {
             mat.shadowSide = THREE.DoubleSide;
-            if (mat.transparent) mat.transparent = false; // Transparent materials don't receive shadows well
+            if (mat.transparent) mat.transparent = false;
           });
         } else {
           obj.material.shadowSide = THREE.DoubleSide;
@@ -133,22 +135,20 @@ loader.load('../glb/narutoandroom.glb', gltf => {
   });
 
   ceilingLamp = model.getObjectByName("model_1");
-  
   monitor = model.getObjectByName("model_2");
-  
+
   console.log("Ceiling lamp found:", !!ceilingLamp, "Monitor found:", !!monitor);
 });
 
+// Load Naruto
 loader.load('../glb/naruto.glb', gltf => {
   const narutoModel = gltf.scene;
   narutoModel.position.set(0, 0, 0);
   
-  // Enable shadows for Naruto model
   narutoModel.traverse(obj => {
     if (obj.isMesh) {
       obj.castShadow = true;
       obj.receiveShadow = true;
-      // Ensure material receives shadows properly
       if (obj.material) {
         if (Array.isArray(obj.material)) {
           obj.material.forEach(mat => {
@@ -163,115 +163,166 @@ loader.load('../glb/naruto.glb', gltf => {
   
   scene.add(narutoModel);
 });
-//rasengan e
-loader.load('../glb/rasengan.glb', gltf => {
-  rasengan = gltf.scene;
-  rasengan.position.set(-8.8, 9.9, 13.9);
+
+// Load rasengan function
+function loadRasenganModel() {
+  return new Promise((resolve, reject) => {
+    loader.load('../glb/rasengan.glb', gltf => {
+      const model = gltf.scene;
+      model.position.set(-8.8, 9.9, 13.9);
+      model.traverse(obj => {
+        if (obj.isMesh) {
+          obj.castShadow = true;
+          obj.receiveShadow = true;
+        }
+      });
+      resolve(model);
+    }, undefined, reject);
+  });
+}
+
+// Load rasenshuriken function
+function loadRasenshurikenModel() {
+  return new Promise((resolve, reject) => {
+    loader.load('../glb/rasenshuriken1.glb', gltf => {
+      const model = gltf.scene;
+      model.position.set(-8.8, 9.9, 13.9);
+      model.traverse(obj => {
+        if (obj.isMesh) {
+          obj.castShadow = true;
+          obj.receiveShadow = true;
+        }
+      });
+      resolve(model);
+    }, undefined, reject);
+  });
+}
+
+// Load initial rasengan
+loadRasenganModel().then(model => {
+  rasenganModel = model;
+  rasengan = rasenganModel;
   scene.add(rasengan);
-});
+}).catch(console.error);
 
-
+// --- Raycaster click ---
 window.addEventListener('click', event => {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
 
-  const intersects = raycaster.intersectObjects([ceilingLamp, monitor].filter(Boolean), true);
+  const clickableObjects = [ceilingLamp, monitor];
+  if (rasengan) clickableObjects.push(rasengan);
+
+  const intersects = raycaster.intersectObjects(clickableObjects.filter(Boolean), true);
   if (intersects.length > 0) {
     const clicked = intersects[0].object;
-   if (clicked === ceilingLamp || ceilingLamp?.children.includes(clicked)) {
-  lampOn = !lampOn;
-  pointLight.visible = lampOn;
-  hemiLight.visible = lampOn;
-  dirLight.visible = lampOn;
-  ambientLight.intensity = lampOn ? 0.3 : 0.05;
-  scene.background = new THREE.Color(lampOn ? 0x333333 : 0x000000);
 
-  console.log("Light toggled:", lampOn ? "ON" : "OFF");
-  console.log("Point light position:", pointLight.position);
-  console.log("Point light casting shadows:", pointLight.castShadow);
-}
-
+    if (clicked === ceilingLamp || ceilingLamp?.children.includes(clicked)) {
+      lampOn = !lampOn;
+      pointLight.visible = lampOn;
+      hemiLight.visible = lampOn;
+      dirLight.visible = lampOn;
+      ambientLight.intensity = lampOn ? 0.3 : 0.05;
+      scene.background = new THREE.Color(lampOn ? 0x333333 : 0x000000);
+    }
 
     if (clicked === monitor || monitor?.children.includes(clicked)) {
       desktopUI.style.display = 'block';
       monitorOpen = true;
     }
+
+    if (rasengan && (clicked === rasengan || rasengan.children.includes(clicked))) {
+      scene.remove(rasengan);
+      rasengan = null;
+
+      if (isRasengan) {
+        loadRasenshurikenModel().then(model => {
+          rasenshurikenModel = model;
+          rasengan = rasenshurikenModel;
+          scene.add(rasengan);
+        }).catch(console.error);
+      } else {
+        loadRasenganModel().then(model => {
+          rasenganModel = model;
+          rasengan = rasenganModel;
+          scene.add(rasengan);
+        }).catch(console.error);
+      }
+
+      isRasengan = !isRasengan;
+    }
   }
 });
 
+// --- WASD Controls ---
+const moveSpeed = 0.05;
+const move = { forward: false, backward: false, left: false, right: false };
+
+window.addEventListener('keydown', e => {
+  switch(e.key.toLowerCase()) {
+    case 'w': move.forward = true; break;
+    case 's': move.backward = true; break;
+    case 'a': move.left = true; break;
+    case 'd': move.right = true; break;
+  }
+});
+
+window.addEventListener('keyup', e => {
+  switch(e.key.toLowerCase()) {
+    case 'w': move.forward = false; break;
+    case 's': move.backward = false; break;
+    case 'a': move.left = false; break;
+    case 'd': move.right = false; break;
+  }
+});
+
+// --- Resize ---
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// --- KEYBOARD CONTROL VARIABLES ---
-const keysPressed = {
-  w: false,
-  a: false,
-  s: false,
-  d: false,
-};
-
-const moveSpeed = 0.1;
-
-window.addEventListener('keydown', event => {
-  const key = event.key.toLowerCase();
-  if (keysPressed.hasOwnProperty(key)) {
-    keysPressed[key] = true;
-  }
-});
-
-window.addEventListener('keyup', event => {
-  const key = event.key.toLowerCase();
-  if (keysPressed.hasOwnProperty(key)) {
-    keysPressed[key] = false;
-  }
-});
-
+// --- Animation Loop ---
 function animate() {
   requestAnimationFrame(animate);
 
-  if (!monitorOpen) {
-    // Handle WASD camera movement
-    const direction = new THREE.Vector3();
-    const right = new THREE.Vector3();
-    const up = new THREE.Vector3(0, 1, 0);
+  // Movement WASD relative to camera direction (XZ plane)
+  const direction = new THREE.Vector3();
 
-    camera.getWorldDirection(direction);
-    direction.y = 0; // lock y to horizontal plane
+  if (move.forward) direction.z -= 1;
+  if (move.backward) direction.z += 1;
+  if (move.left) direction.x -= 1;
+  if (move.right) direction.x += 1;
+
+  if (direction.lengthSq() > 0) {
     direction.normalize();
 
-    right.crossVectors(direction, up).normalize();
+    // Get forward and right vector from camera
+    const forward = new THREE.Vector3();
+    camera.getWorldDirection(forward);
+    forward.y = 0;
+    forward.normalize();
 
-    if (keysPressed.w) {
-      camera.position.addScaledVector(direction, moveSpeed);
-      controls.target.addScaledVector(direction, moveSpeed);
-    }
-    if (keysPressed.s) {
-      camera.position.addScaledVector(direction, -moveSpeed);
-      controls.target.addScaledVector(direction, -moveSpeed);
-    }
-    if (keysPressed.a) {
-      camera.position.addScaledVector(right, -moveSpeed);
-      controls.target.addScaledVector(right, -moveSpeed);
-    }
-    if (keysPressed.d) {
-      camera.position.addScaledVector(right, moveSpeed);
-      controls.target.addScaledVector(right, moveSpeed);
-    }
+    const right = new THREE.Vector3();
+    right.crossVectors(forward, camera.up).normalize();
+
+    // Calculate movement vector
+    const moveVec = new THREE.Vector3();
+    moveVec.addScaledVector(forward, direction.z * moveSpeed);
+    moveVec.addScaledVector(right, direction.x * moveSpeed);
+
+    camera.position.add(moveVec);
+    controls.target.add(moveVec);
   }
 
-  controls.enabled = !monitorOpen;
-  controls.update();
-
+  // Rotate rasengan/rasenshuriken model slowly on Y axis
   if (rasengan) {
-    // Rotate rasengan
-    rasengan.rotation.y += rasenganSpeed * 0.01;
-    rasengan.rotation.x += rasenganSpeed * 0.002;
+    rasengan.rotation.y += rasenganSpeed;
   }
 
+  controls.update();
   renderer.render(scene, camera);
 }
 

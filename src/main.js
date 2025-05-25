@@ -66,6 +66,7 @@ let ceilingLamp = null;
 let monitor = null;
 let lampOn = false;
 let monitorOpen = false;
+let cameraLocked = false; // New variable to track camera lock state
 
 let isRasengan = true;
 let rasenganModel = null;
@@ -80,6 +81,7 @@ const ninjaInfo = document.getElementById('ninjaInfo');
 shutdownBtn.addEventListener('click', () => {
   desktopUI.style.display = 'none';
   monitorOpen = false;
+  cameraLocked = false; // Unlock camera when shutting down
   ninjaInfo.style.display = 'none';
 });
 
@@ -184,9 +186,9 @@ function loadRasenganModel() {
 // Load rasenshuriken function
 function loadRasenshurikenModel() {
   return new Promise((resolve, reject) => {
-    loader.load('../glb/rasenshuriken1.glb', gltf => {
+    loader.load('../glb/odama.glb', gltf => {
       const model = gltf.scene;
-      model.position.set(-8.8, 9.9, 13.9);
+      model.position.set(-8.8, 11.2, 13.9);
       model.traverse(obj => {
         if (obj.isMesh) {
           obj.castShadow = true;
@@ -230,6 +232,7 @@ window.addEventListener('click', event => {
     if (clicked === monitor || monitor?.children.includes(clicked)) {
       desktopUI.style.display = 'block';
       monitorOpen = true;
+      cameraLocked = true; // Lock camera when monitor is clicked
     }
 
     if (rasengan && (clicked === rasengan || rasengan.children.includes(clicked))) {
@@ -261,8 +264,8 @@ const move = { forward: false, backward: false, left: false, right: false };
 
 window.addEventListener('keydown', e => {
   switch(e.key.toLowerCase()) {
-    case 'w': move.forward = true; break;
-    case 's': move.backward = true; break;
+    case 'w': move.backward = true; break;
+    case 's': move.forward = true; break;
     case 'a': move.left = true; break;
     case 'd': move.right = true; break;
   }
@@ -270,8 +273,8 @@ window.addEventListener('keydown', e => {
 
 window.addEventListener('keyup', e => {
   switch(e.key.toLowerCase()) {
-    case 'w': move.forward = false; break;
-    case 's': move.backward = false; break;
+    case 'w': move.backward = false; break;
+    case 's': move.forward = false; break;
     case 'a': move.left = false; break;
     case 'd': move.right = false; break;
   }
@@ -288,33 +291,35 @@ window.addEventListener('resize', () => {
 function animate() {
   requestAnimationFrame(animate);
 
-  // Movement WASD relative to camera direction (XZ plane)
-  const direction = new THREE.Vector3();
+  // Movement WASD relative to camera direction (XZ plane) - only if camera is not locked
+  if (!cameraLocked) {
+    const direction = new THREE.Vector3();
 
-  if (move.forward) direction.z -= 1;
-  if (move.backward) direction.z += 1;
-  if (move.left) direction.x -= 1;
-  if (move.right) direction.x += 1;
+    if (move.forward) direction.z -= 10;
+    if (move.backward) direction.z += 10;
+    if (move.left) direction.x -= 10;
+    if (move.right) direction.x += 10;
 
-  if (direction.lengthSq() > 0) {
-    direction.normalize();
+    if (direction.lengthSq() > 0) {
+      direction.normalize();
 
-    // Get forward and right vector from camera
-    const forward = new THREE.Vector3();
-    camera.getWorldDirection(forward);
-    forward.y = 0;
-    forward.normalize();
+      // Get forward and right vector from camera
+      const forward = new THREE.Vector3();
+      camera.getWorldDirection(forward);
+      forward.y = 0;
+      forward.normalize();
 
-    const right = new THREE.Vector3();
-    right.crossVectors(forward, camera.up).normalize();
+      const right = new THREE.Vector3();
+      right.crossVectors(forward, camera.up).normalize();
 
-    // Calculate movement vector
-    const moveVec = new THREE.Vector3();
-    moveVec.addScaledVector(forward, direction.z * moveSpeed);
-    moveVec.addScaledVector(right, direction.x * moveSpeed);
+      // Calculate movement vector
+      const moveVec = new THREE.Vector3();
+      moveVec.addScaledVector(forward, direction.z * moveSpeed);
+      moveVec.addScaledVector(right, direction.x * moveSpeed);
 
-    camera.position.add(moveVec);
-    controls.target.add(moveVec);
+      camera.position.add(moveVec);
+      controls.target.add(moveVec);
+    }
   }
 
   // Rotate rasengan/rasenshuriken model slowly on Y axis

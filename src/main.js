@@ -56,6 +56,16 @@ dirLight.shadow.normalBias = 0.05;
 scene.add(dirLight);
 scene.add(dirLight.target);
 
+// S2 purple glow light
+const s2GlowLight = new THREE.PointLight(0x9966ff, 2, 30, 0.3);
+s2GlowLight.visible = false;
+scene.add(s2GlowLight);
+
+// Rasengan blue glow light
+const rasenganGlowLight = new THREE.PointLight(0x0088ff, 1.5, 25, 0.4);
+rasenganGlowLight.visible = false;
+scene.add(rasenganGlowLight);
+
 // --- Raycaster and mouse ---
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -67,8 +77,9 @@ let lampOn = false;
 let monitorOpen = false;
 let cameraLocked = false;
 let S2 = null;
-let S2Loaded = false; // Flag to track if S2 is loaded but not yet added to scene
-let S2Rendered = false; // Flag to track if S2 is currently rendered in scene
+let S2Loaded = false;
+let S2Rendered = false;
+let s2GlowMeshes = []; // Store glow outline meshes only
 
 let isRasengan = true;
 let rasenganModel = null;
@@ -76,12 +87,13 @@ let rasenshurikenModel = null;
 let rasengan = null;
 let rasenganSpinning = false;
 const rasenganSpeed = 0.12;
+let rasenganGlowMeshes = []; // Store rasengan glow outline meshes
 
 let gamaBunta = null;
 let narutoModel = null;
-let gamaBuntaVisible = false; // State untuk visibility Gama Bunta
-let smokeParticles = []; // Array untuk menyimpan partikel asap
-let isSpawning = false; // State untuk proses spawning
+let gamaBuntaVisible = false;
+let smokeParticles = [];
+let isSpawning = false;
 
 const desktopUI = document.getElementById('desktopUI');
 const shutdownBtn = document.getElementById('shutdownBtn');
@@ -123,7 +135,6 @@ document.getElementById('shortcutVSCode').addEventListener('click', () => {
 let smokeTexture;
 const textureLoader = new THREE.TextureLoader();
 
-// Load smoke texture
 textureLoader.load('../asset/smoke1.gif', (texture) => {
   smokeTexture = texture;
   console.log('Smoke texture loaded successfully');
@@ -131,49 +142,41 @@ textureLoader.load('../asset/smoke1.gif', (texture) => {
   console.error('Error loading smoke texture:', error);
 });
 
-// Function to create smoke effect
 function createSmokeEffect(position, callback) {
   if (!smokeTexture) {
     console.warn('Smoke texture not loaded yet');
     return;
   }
 
-  // Clear existing smoke particles
   smokeParticles.forEach(particle => {
     scene.remove(particle);
   });
   smokeParticles = [];
 
-  // Create multiple smoke particles (lebih banyak dan lebih besar)
   for (let i = 0; i < 25; i++) {
-    const smokeGeometry = new THREE.PlaneGeometry(700, 700); // Ukuran lebih besar
+    const smokeGeometry = new THREE.PlaneGeometry(700, 700);
     const smokeMaterial = new THREE.MeshBasicMaterial({
       map: smokeTexture,
       transparent: true,
       opacity: 0.8,
       side: THREE.DoubleSide
-
-      
     });
 
     const smokeParticle = new THREE.Mesh(smokeGeometry, smokeMaterial);
     
-    // Position particles around the spawn point dengan area lebih luas
     smokeParticle.position.set(
       position.x + (Math.random() - 0.5) * 20,
       position.y + Math.random() * 8,
       position.z + (Math.random() - 0.5) * 20
     );
     
-    // Random rotation
     smokeParticle.rotation.z = Math.random() * Math.PI * 2;
     
-    // Store initial properties for animation
     smokeParticle.userData = {
       initialY: smokeParticle.position.y,
       speed: 0.08 + Math.random() * 0.07,
       rotSpeed: (Math.random() - 0.5) * 0.03,
-      lifeTime: 360, // 6 detik pada 60fps untuk durasi lebih lama
+      lifeTime: 360,
       age: 0
     };
 
@@ -181,37 +184,138 @@ function createSmokeEffect(position, callback) {
     smokeParticles.push(smokeParticle);
   }
 
-  // Set timer untuk spawn Gama Bunta setelah 3 detik
   if (callback) {
     setTimeout(callback, 3000);
   }
 }
 
-// Function to update smoke particles
 function updateSmokeEffect() {
   smokeParticles.forEach((particle, index) => {
     particle.userData.age++;
     
-    // Move particle upward
     particle.position.y += particle.userData.speed;
-    
-    // Rotate particle
     particle.rotation.z += particle.userData.rotSpeed;
     
-    // Fade out over time
     const lifeRatio = particle.userData.age / particle.userData.lifeTime;
     particle.material.opacity = 0.8 * (1 - lifeRatio);
     
-    // Scale up over time (lebih dramatis)
     const scale = 1 + lifeRatio * 1.5;
     particle.scale.set(scale, scale, scale);
     
-    // Remove particle when lifetime is over
     if (particle.userData.age >= particle.userData.lifeTime) {
       scene.remove(particle);
       smokeParticles.splice(index, 1);
     }
   });
+}
+
+// Function to add purple glow outline to S2 (no color change to model itself)
+function addGlowToS2() {
+  if (!S2) return;
+  
+  S2.traverse((child) => {
+    if (child.isMesh) {
+      // Create purple glow outline effect only
+      const glowGeometry = child.geometry.clone();
+      const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x9966ff, // Purple color
+        transparent: true,
+        opacity: 0.4,
+        side: THREE.BackSide
+      });
+      
+      const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+      glowMesh.scale.multiplyScalar(1.06); // Slightly larger for outline effect
+      glowMesh.position.copy(child.position);
+      glowMesh.rotation.copy(child.rotation);
+      
+      // Add glow mesh to the same parent as the original mesh
+      if (child.parent) {
+        child.parent.add(glowMesh);
+      } else {
+        scene.add(glowMesh);
+      }
+      
+      s2GlowMeshes.push(glowMesh);
+    }
+  });
+  
+  // Position purple glow light at S2's position
+  s2GlowLight.position.copy(S2.position);
+  s2GlowLight.visible = true;
+}
+
+// Function to remove glow effect from S2
+function removeGlowFromS2() {
+  // Remove glow outline meshes
+  s2GlowMeshes.forEach(glowMesh => {
+    if (glowMesh.parent) {
+      glowMesh.parent.remove(glowMesh);
+    } else {
+      scene.remove(glowMesh);
+    }
+    glowMesh.geometry.dispose();
+    glowMesh.material.dispose();
+  });
+  s2GlowMeshes = [];
+  
+  s2GlowLight.visible = false;
+}
+
+// Function to add blue glow outline to rasengan (no color change to model itself)
+function addGlowToRasengan() {
+  if (!rasengan) return;
+  
+  // Remove existing glow first
+  removeGlowFromRasengan();
+  
+  rasengan.traverse((child) => {
+    if (child.isMesh) {
+      // Create blue glow outline effect only
+      const glowGeometry = child.geometry.clone();
+      const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x0088ff, // Blue color
+        transparent: true,
+        opacity: 0.5,
+        side: THREE.BackSide
+      });
+      
+      const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+      glowMesh.scale.multiplyScalar(1.08); // Slightly larger for outline effect
+      glowMesh.position.copy(child.position);
+      glowMesh.rotation.copy(child.rotation);
+      
+      // Add glow mesh to the same parent as the original mesh
+      if (child.parent) {
+        child.parent.add(glowMesh);
+      } else {
+        scene.add(glowMesh);
+      }
+      
+      rasenganGlowMeshes.push(glowMesh);
+    }
+  });
+  
+  // Position blue glow light at rasengan's position
+  rasenganGlowLight.position.copy(rasengan.position);
+  rasenganGlowLight.visible = true;
+}
+
+// Function to remove glow effect from rasengan
+function removeGlowFromRasengan() {
+  // Remove glow outline meshes
+  rasenganGlowMeshes.forEach(glowMesh => {
+    if (glowMesh.parent) {
+      glowMesh.parent.remove(glowMesh);
+    } else {
+      scene.remove(glowMesh);
+    }
+    glowMesh.geometry.dispose();
+    glowMesh.material.dispose();
+  });
+  rasenganGlowMeshes = [];
+  
+  rasenganGlowLight.visible = false;
 }
 
 // Loader
@@ -269,7 +373,6 @@ loader.load('../glb/naruto.glb', gltf => {
 
   scene.add(narutoModel);
 
-  // Load Gama Bunta tapi tidak langsung ditambahkan ke scene
   loader.load('../glb/kodok.glb', gltf => {
     gamaBunta = gltf.scene;
     gamaBunta.position.set(-230, -80, 0);
@@ -290,12 +393,10 @@ loader.load('../glb/naruto.glb', gltf => {
         }
       }
     });
-    // Jangan langsung add ke scene, tunggu tombol E ditekan
     console.log('Gama Bunta loaded, press E to summon!');
   }, undefined, console.error);
 });
 
-// Load rasengan function
 function loadRasenganModel() {
   return new Promise((resolve, reject) => {
     loader.load('../glb/rasengan.glb', gltf => {
@@ -312,12 +413,12 @@ function loadRasenganModel() {
   });
 }
 
-// Load rasenshuriken function
 function loadRasenshurikenModel() {
   return new Promise((resolve, reject) => {
-    loader.load('../glb/odama.glb', gltf => {
+    loader.load('../glb/rasengan.glb', gltf => {
       const model = gltf.scene;
       model.position.set(-8.8, 11.2, 13.9);
+      model.scale.set(2.5, 2.5, 2.5); // Make it bigger than regular rasengan
       model.traverse(obj => {
         if (obj.isMesh) {
           obj.castShadow = true;
@@ -344,6 +445,7 @@ loadRasenganModel().then(model => {
   rasenganModel = model;
   rasengan = rasenganModel;
   scene.add(rasengan);
+  addGlowToRasengan(); // Add blue glow to rasengan immediately
 }).catch(console.error);
 
 // --- Raycaster click ---
@@ -379,16 +481,18 @@ window.addEventListener('click', event => {
       cameraLocked = true;
       controls.enabled = false;
       
-      // Render S2 model when monitor is clicked
+      // Render S2 model with purple glow when monitor is clicked
       if (S2Loaded && !S2Rendered) {
         scene.add(S2);
+        addGlowToS2();
         S2Rendered = true;
-        console.log('S2 model rendered to scene!');
+        console.log('S2 model rendered to scene with purple glow effect!');
       }
     }
 
     if (rasengan && (clicked === rasengan || rasengan.children.includes(clicked))) {
       scene.remove(rasengan);
+      removeGlowFromRasengan(); // Remove glow from current rasengan
       rasengan = null;
 
       if (isRasengan) {
@@ -396,12 +500,14 @@ window.addEventListener('click', event => {
           rasenshurikenModel = model;
           rasengan = rasenshurikenModel;
           scene.add(rasengan);
+          addGlowToRasengan(); // Add blue glow to new rasengan
         }).catch(console.error);
       } else {
         loadRasenganModel().then(model => {
           rasenganModel = model;
           rasengan = rasenganModel;
           scene.add(rasengan);
+          addGlowToRasengan(); // Add blue glow to new rasengan
         }).catch(console.error);
       }
 
@@ -410,7 +516,6 @@ window.addEventListener('click', event => {
   }
 });
 
-// Helper function untuk cek apakah object adalah child dari Naruto
 function isChildOfNaruto(object) {
   if (!narutoModel) return false;
   let parent = object.parent;
@@ -423,23 +528,18 @@ function isChildOfNaruto(object) {
 
 // --- Shutdown button event ---
 shutdownBtn.addEventListener('click', () => {
-  // Sembunyikan tampilan desktop
   desktopUI.style.display = 'none';
-
-  // Ubah status monitor dan kamera
   monitorOpen = false;
   cameraLocked = false;
-
-  // Sembunyikan panel ninja info
   ninjaInfo.style.display = 'none';
 
-  // Hapus S2 dari scene jika sedang ditampilkan
+  // Remove S2 and its glow effect when shutting down
   if (S2Rendered && S2) {
+    removeGlowFromS2();
     scene.remove(S2);
     S2Rendered = false;
   }
 });
-
 
 // --- WASD Controls + E key for Gama Bunta ---
 const moveSpeed = 0.05;
@@ -452,19 +552,15 @@ window.addEventListener('keydown', e => {
     case 'a': move.left = true; break;
     case 'd': move.right = true; break;
     case 'e': 
-      // Toggle Gama Bunta visibility
       if (gamaBunta && !isSpawning) {
         if (gamaBuntaVisible) {
-          // Hide Gama Bunta
           scene.remove(gamaBunta);
           gamaBuntaVisible = false;
           console.log('Gama Bunta dismissed!');
         } else {
-          // Start spawning process
           isSpawning = true;
           console.log('Summoning Gama Bunta... creating smoke effect first!');
           
-          // Create smoke effect first, then spawn Gama Bunta after 3 seconds
           createSmokeEffect(gamaBunta.position, () => {
             scene.add(gamaBunta);
             gamaBuntaVisible = true;
@@ -493,6 +589,9 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// Pulsing glow animation
+let glowTime = 0;
+
 // --- Animation Loop ---
 function animate() {
   requestAnimationFrame(animate);
@@ -506,20 +605,22 @@ function animate() {
     if (move.left) direction.x -= 10;
     if (move.right) direction.x += 10;
 
-    // Rasengan hanya berputar jika rasenganSpinning = true (setelah Naruto diklik)
     if (rasengan && rasenganSpinning) { 
       rasengan.rotation.y += rasenganSpeed;
       rasengan.rotation.x += rasenganSpeed * 0.2;
+      
+      // Rotate rasengan glow meshes as well
+      rasenganGlowMeshes.forEach(glowMesh => {
+        glowMesh.rotation.y += rasenganSpeed;
+        glowMesh.rotation.x += rasenganSpeed * 0.2;
+      });
     }
 
     controls.enabled = !monitorOpen;
-    controls.update();
-    renderer.render(scene, camera);
 
     if (direction.lengthSq() > 0) {
       direction.normalize();
 
-      // Get forward and right vector from camera
       const forward = new THREE.Vector3();
       camera.getWorldDirection(forward);
       forward.y = 0;
@@ -528,7 +629,6 @@ function animate() {
       const right = new THREE.Vector3();
       right.crossVectors(forward, camera.up).normalize();
 
-      // Calculate movement vector
       const moveVec = new THREE.Vector3();
       moveVec.addScaledVector(forward, direction.z * moveSpeed);
       moveVec.addScaledVector(right, direction.x * moveSpeed);
@@ -538,10 +638,41 @@ function animate() {
     }
   }
 
-  // Update smoke effect
-  updateSmokeEffect();
+  // Animate S2 purple glow effect
+  if (S2Rendered && s2GlowMeshes.length > 0) {
+    glowTime += 0.016; // Assuming 60fps
+    const glowOpacity = 0.3 + Math.sin(glowTime * 2) * 0.2; // Pulsing opacity for outline
+    
+    // Animate glow outline opacity and scale
+    s2GlowMeshes.forEach(glowMesh => {
+      glowMesh.material.opacity = glowOpacity;
+      const scale = 1.06 + Math.sin(glowTime * 2.5) * 0.02; // Slight breathing effect
+      glowMesh.scale.setScalar(scale);
+    });
+    
+    // Also animate the purple point light intensity
+    s2GlowLight.intensity = 1.5 + Math.sin(glowTime * 2) * 0.8;
+  }
 
+  // Animate rasengan blue glow effect
+  if (rasenganGlowMeshes.length > 0) {
+    const rasenganGlowOpacity = 0.4 + Math.sin(glowTime * 3) * 0.2; // Pulsing opacity for outline
+    
+    // Animate rasengan glow outline opacity and scale
+    rasenganGlowMeshes.forEach(glowMesh => {
+      glowMesh.material.opacity = rasenganGlowOpacity;
+      const scale = 1.08 + Math.sin(glowTime * 3.5) * 0.03; // Slight breathing effect
+      glowMesh.scale.setScalar(scale);
+    });
+    
+    // Also animate the blue point light intensity
+    rasenganGlowLight.intensity = 1.2 + Math.sin(glowTime * 3) * 0.6;
+  }
+
+  updateSmokeEffect();
   controls.update();
+  
+  // Use standard renderer instead of composer
   renderer.render(scene, camera);
 }
 

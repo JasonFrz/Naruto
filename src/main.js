@@ -26,8 +26,8 @@ const pointLight = new THREE.PointLight(0xffffff, 8, 50, 0.5);
 pointLight.position.set(0, 12, 0);
 pointLight.visible = false;
 pointLight.castShadow = true;
-pointLight.shadow.mapSize.width = 2048;
-pointLight.shadow.mapSize.height = 2048;
+pointLight.shadow.mapSize.width = 512;
+pointLight.shadow.mapSize.height = 512;
 pointLight.shadow.camera.near = 1;
 pointLight.shadow.camera.far = 50;
 pointLight.shadow.bias = -0.001;
@@ -43,8 +43,8 @@ dirLight.position.set(-10, 15, 8);
 dirLight.target.position.set(0, 0, 0);
 dirLight.visible = false;
 dirLight.castShadow = true;
-dirLight.shadow.mapSize.width = 4096;
-dirLight.shadow.mapSize.height = 4096;
+dirLight.shadow.mapSize.width = 1024;
+dirLight.shadow.mapSize.height = 1024;
 dirLight.shadow.camera.near = 1;
 dirLight.shadow.camera.far = 40;
 dirLight.shadow.camera.left = -25;
@@ -71,9 +71,14 @@ let isRasengan = true;
 let rasenganModel = null;
 let rasenshurikenModel = null;
 let rasengan = null;
-const rasenganSpeed = 0.09;
+let rasenganSpinning = false;
+const rasenganSpeed = 0.12;
 
-let gamaBunta = null;  // Model Gama Bunta
+let gamaBunta = null;
+let narutoModel = null;
+let gamaBuntaVisible = false; // State untuk visibility Gama Bunta
+let smokeParticles = []; // Array untuk menyimpan partikel asap
+let isSpawning = false; // State untuk proses spawning
 
 const desktopUI = document.getElementById('desktopUI');
 const shutdownBtn = document.getElementById('shutdownBtn');
@@ -96,7 +101,7 @@ document.getElementById('shortcutVSCode').addEventListener('click', () => {
         <strong>Nama:</strong> Naruto Uzumaki<br>
         <strong>Tier:</strong> S<br>
         <strong>Misi:</strong> 400+ S-rank<br>
-        <strong>Hasil Ujian Chunin:</strong> Lulus (dengan kekacauan 😅)
+        <strong>Hasil Ujian Chunin:</strong> Lulus 
       </div>
     </div>
     <div class="ninja-card">
@@ -110,6 +115,99 @@ document.getElementById('shortcutVSCode').addEventListener('click', () => {
     </div>
   `;
 });
+
+// --- Smoke Effect Setup ---
+let smokeTexture;
+const textureLoader = new THREE.TextureLoader();
+
+// Load smoke texture
+textureLoader.load('../asset/smoke.jpg', (texture) => {
+  smokeTexture = texture;
+  console.log('Smoke texture loaded successfully');
+}, undefined, (error) => {
+  console.error('Error loading smoke texture:', error);
+});
+
+// Function to create smoke effect
+function createSmokeEffect(position, callback) {
+  if (!smokeTexture) {
+    console.warn('Smoke texture not loaded yet');
+    return;
+  }
+
+  // Clear existing smoke particles
+  smokeParticles.forEach(particle => {
+    scene.remove(particle);
+  });
+  smokeParticles = [];
+
+  // Create multiple smoke particles (lebih banyak dan lebih besar)
+  for (let i = 0; i < 25; i++) {
+    const smokeGeometry = new THREE.PlaneGeometry(20, 20); // Ukuran lebih besar
+    const smokeMaterial = new THREE.MeshBasicMaterial({
+      map: smokeTexture,
+      transparent: true,
+      opacity: 0.8,
+      side: THREE.DoubleSide
+    });
+
+    const smokeParticle = new THREE.Mesh(smokeGeometry, smokeMaterial);
+    
+    // Position particles around the spawn point dengan area lebih luas
+    smokeParticle.position.set(
+      position.x + (Math.random() - 0.5) * 20,
+      position.y + Math.random() * 8,
+      position.z + (Math.random() - 0.5) * 20
+    );
+    
+    // Random rotation
+    smokeParticle.rotation.z = Math.random() * Math.PI * 2;
+    
+    // Store initial properties for animation
+    smokeParticle.userData = {
+      initialY: smokeParticle.position.y,
+      speed: 0.08 + Math.random() * 0.07,
+      rotSpeed: (Math.random() - 0.5) * 0.03,
+      lifeTime: 360, // 6 detik pada 60fps untuk durasi lebih lama
+      age: 0
+    };
+
+    scene.add(smokeParticle);
+    smokeParticles.push(smokeParticle);
+  }
+
+  // Set timer untuk spawn Gama Bunta setelah 3 detik
+  if (callback) {
+    setTimeout(callback, 3000);
+  }
+}
+
+// Function to update smoke particles
+function updateSmokeEffect() {
+  smokeParticles.forEach((particle, index) => {
+    particle.userData.age++;
+    
+    // Move particle upward
+    particle.position.y += particle.userData.speed;
+    
+    // Rotate particle
+    particle.rotation.z += particle.userData.rotSpeed;
+    
+    // Fade out over time
+    const lifeRatio = particle.userData.age / particle.userData.lifeTime;
+    particle.material.opacity = 0.8 * (1 - lifeRatio);
+    
+    // Scale up over time (lebih dramatis)
+    const scale = 1 + lifeRatio * 1.5;
+    particle.scale.set(scale, scale, scale);
+    
+    // Remove particle when lifetime is over
+    if (particle.userData.age >= particle.userData.lifeTime) {
+      scene.remove(particle);
+      smokeParticles.splice(index, 1);
+    }
+  });
+}
 
 // Loader
 const loader = new GLTFLoader();
@@ -145,7 +243,7 @@ loader.load('../glb/narutoandroom.glb', gltf => {
 
 // Load Naruto
 loader.load('../glb/naruto.glb', gltf => {
-  const narutoModel = gltf.scene;
+  narutoModel = gltf.scene;
   narutoModel.position.set(0, 0, 0);
 
   narutoModel.traverse(obj => {
@@ -166,29 +264,29 @@ loader.load('../glb/naruto.glb', gltf => {
 
   scene.add(narutoModel);
 
-  // Load Gama Bunta kodok.glb di samping Naruto
-loader.load('../glb/kodok.glb', gltf => {
-  gamaBunta = gltf.scene;
-  gamaBunta.position.set(60, 0, 0);
-  gamaBunta.scale.set(0.07, 0.07, 0.07);  // ukuran diperkecil di sini
-  gamaBunta.traverse(obj => {
-    if (obj.isMesh) {
-      obj.castShadow = true;
-      obj.receiveShadow = true;
-      if (obj.material) {
-        if (Array.isArray(obj.material)) {
-          obj.material.forEach(mat => {
-            mat.shadowSide = THREE.DoubleSide;
-          });
-        } else {
-          obj.material.shadowSide = THREE.DoubleSide;
+  // Load Gama Bunta tapi tidak langsung ditambahkan ke scene
+  loader.load('../glb/kodok.glb', gltf => {
+    gamaBunta = gltf.scene;
+    gamaBunta.position.set(60, 0, 0);
+    gamaBunta.scale.set(0.07, 0.07, 0.07);
+    gamaBunta.traverse(obj => {
+      if (obj.isMesh) {
+        obj.castShadow = true;
+        obj.receiveShadow = true;
+        if (obj.material) {
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach(mat => {
+              mat.shadowSide = THREE.DoubleSide;
+            });
+          } else {
+            obj.material.shadowSide = THREE.DoubleSide;
+          }
         }
       }
-    }
-  });
-  scene.add(gamaBunta);
-}, undefined, console.error);
-
+    });
+    // Jangan langsung add ke scene, tunggu tombol E ditekan
+    console.log('Gama Bunta loaded, press E to summon!');
+  }, undefined, console.error);
 });
 
 // Load rasengan function
@@ -238,12 +336,17 @@ window.addEventListener('click', event => {
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
 
-  const clickableObjects = [ceilingLamp, monitor];
+  const clickableObjects = [ceilingLamp, monitor, narutoModel];
   if (rasengan) clickableObjects.push(rasengan);
 
   const intersects = raycaster.intersectObjects(clickableObjects.filter(Boolean), true);
   if (intersects.length > 0) {
     const clicked = intersects[0].object;
+
+    if (narutoModel && (clicked === narutoModel || narutoModel.children.includes(clicked) || isChildOfNaruto(clicked))) {
+      rasenganSpinning = !rasenganSpinning;
+      console.log("Naruto clicked! Rasengan spinning:", rasenganSpinning);
+    }
 
     if (clicked === ceilingLamp || ceilingLamp?.children.includes(clicked)) {
       lampOn = !lampOn;
@@ -284,6 +387,17 @@ window.addEventListener('click', event => {
   }
 });
 
+// Helper function untuk cek apakah object adalah child dari Naruto
+function isChildOfNaruto(object) {
+  if (!narutoModel) return false;
+  let parent = object.parent;
+  while (parent) {
+    if (parent === narutoModel) return true;
+    parent = parent.parent;
+  }
+  return false;
+}
+
 // --- Shutdown button event ---
 shutdownBtn.addEventListener('click', () => {
   desktopUI.style.display = 'none';
@@ -293,7 +407,7 @@ shutdownBtn.addEventListener('click', () => {
   ninjaInfo.style.display = 'none';
 });
 
-// --- WASD Controls ---
+// --- WASD Controls + E key for Gama Bunta ---
 const moveSpeed = 0.05;
 const move = { forward: false, backward: false, left: false, right: false };
 
@@ -303,6 +417,29 @@ window.addEventListener('keydown', e => {
     case 's': move.forward = true; break;
     case 'a': move.left = true; break;
     case 'd': move.right = true; break;
+    case 'e': 
+      // Toggle Gama Bunta visibility
+      if (gamaBunta && !isSpawning) {
+        if (gamaBuntaVisible) {
+          // Hide Gama Bunta
+          scene.remove(gamaBunta);
+          gamaBuntaVisible = false;
+          console.log('Gama Bunta dismissed!');
+        } else {
+          // Start spawning process
+          isSpawning = true;
+          console.log('Summoning Gama Bunta... creating smoke effect first!');
+          
+          // Create smoke effect first, then spawn Gama Bunta after 3 seconds
+          createSmokeEffect(gamaBunta.position, () => {
+            scene.add(gamaBunta);
+            gamaBuntaVisible = true;
+            isSpawning = false;
+            console.log('Gama Bunta has appeared!');
+          });
+        }
+      }
+      break;
   }
 });
 
@@ -335,16 +472,15 @@ function animate() {
     if (move.left) direction.x -= 10;
     if (move.right) direction.x += 10;
 
-      if (rasengan) {  // Buat speed muter e rasengan
-
+    // Rasengan hanya berputar jika rasenganSpinning = true (setelah Naruto diklik)
+    if (rasengan && rasenganSpinning) { 
       rasengan.rotation.y += rasenganSpeed;
       rasengan.rotation.x += rasenganSpeed * 0.2;
-
     }
 
-  controls.enabled = !monitorOpen;
-  controls.update();
-  renderer.render(scene, camera);
+    controls.enabled = !monitorOpen;
+    controls.update();
+    renderer.render(scene, camera);
 
     if (direction.lengthSq() > 0) {
       direction.normalize();
@@ -368,8 +504,10 @@ function animate() {
     }
   }
 
-  controls.update();
+  // Update smoke effect
+  updateSmokeEffect();
 
+  controls.update();
   renderer.render(scene, camera);
 }
 

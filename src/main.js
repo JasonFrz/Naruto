@@ -194,7 +194,10 @@ function updateSmokeEffect() {
     particle.userData.age++;
     
     particle.position.y += particle.userData.speed;
-    particle.rotation.z += particle.userData.rotSpeed;
+    
+    particle.rotation.x += particle.userData.rotSpeed * 1;
+    particle.rotation.y += particle.userData.rotSpeed * 1;
+    particle.rotation.z += particle.userData.rotSpeed * 1;
     
     const lifeRatio = particle.userData.age / particle.userData.lifeTime;
     particle.material.opacity = 0.8 * (1 - lifeRatio);

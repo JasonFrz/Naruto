@@ -88,7 +88,7 @@ let rasengan = null;
 let rasenganSpinning = false;
 const rasenganSpeed = 0.12;
 let rasenganGlowMeshes = []; // Store rasengan glow outline meshes
-
+let sasukeModel = null;
 let gamaBunta = null;
 let narutoModel = null;
 let gamaBuntaVisible = false;
@@ -399,6 +399,28 @@ loader.load('../glb/naruto.glb', gltf => {
     console.log('Gama Bunta loaded, press E to summon!');
   }, undefined, console.error);
 });
+
+
+
+loader.load('../glb/sasuke.glb', gltf => {
+  sasukeModel = gltf.scene;
+  scene.add(sasukeModel);
+
+  // Atur posisi awal Sasuke (misalnya berdiri di samping Naruto)
+  sasukeModel.position.set(0, 1, 0); // Sesuaikan posisi dengan kebutuhan
+  sasukeModel.scale.set(0.11, 0.11, 0.11);     // Sesuaikan skala jika perlu
+  sasukeModel.traverse(child => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+
+  console.log('Model Sasuke berhasil dimuat');
+}, undefined, error => {
+  console.error('Gagal memuat model Sasuke:', error);
+});
+
 
 function loadRasenganModel() {
   return new Promise((resolve, reject) => {

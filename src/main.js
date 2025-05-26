@@ -66,6 +66,11 @@ const rasenganGlowLight = new THREE.PointLight(0x0088ff, 1.5, 25, 0.4);
 rasenganGlowLight.visible = false;
 scene.add(rasenganGlowLight);
 
+// Susanoo purple glow light
+const susanooGlowLight = new THREE.PointLight(0x6600cc, 3, 40, 0.5);
+susanooGlowLight.visible = false;
+scene.add(susanooGlowLight);
+
 // --- Raycaster and mouse ---
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -94,6 +99,12 @@ let narutoModel = null;
 let gamaBuntaVisible = false;
 let smokeParticles = [];
 let isSpawning = false;
+
+// Susanoo variables
+let susanooModel = null;
+let susanooLoaded = false;
+let susanooVisible = false;
+let susanooGlowMeshes = []; // Store susanoo glow outline meshes
 
 const desktopUI = document.getElementById('desktopUI');
 const shutdownBtn = document.getElementById('shutdownBtn');
@@ -142,52 +153,62 @@ textureLoader.load('../asset/smoke1.gif', (texture) => {
   console.error('Error loading smoke texture:', error);
 });
 
-function createSmokeEffect(position, callback) {
+function createSmokeEffect(position, callback, isSusanooSummon = false) {
   if (!smokeTexture) {
     console.warn('Smoke texture not loaded yet');
     return;
   }
 
+  // Clear existing smoke particles
   smokeParticles.forEach(particle => {
     scene.remove(particle);
   });
   smokeParticles = [];
 
-  for (let i = 0; i < 25; i++) {
-    const smokeGeometry = new THREE.PlaneGeometry(700, 700);
-    const smokeMaterial = new THREE.MeshBasicMaterial({
-      map: smokeTexture,
-      transparent: true,
-      opacity: 0.8,
-      side: THREE.DoubleSide
-    });
+  // Only create smoke for Gama Bunta
+  if (!isSusanooSummon) {
+    for (let i = 0; i < 25; i++) {
+      const smokeGeometry = new THREE.PlaneGeometry(700, 700);
+      const smokeMaterial = new THREE.MeshBasicMaterial({
+        map: smokeTexture,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide
+      });
 
-    const smokeParticle = new THREE.Mesh(smokeGeometry, smokeMaterial);
-    
-    smokeParticle.position.set(
-      position.x + (Math.random() - 0.5) * 20,
-      position.y + Math.random() * 8,
-      position.z + (Math.random() - 0.5) * 20
-    );
-    
-    smokeParticle.rotation.z = Math.random() * Math.PI * 2;
-    
-    smokeParticle.userData = {
-      initialY: smokeParticle.position.y,
-      speed: 0.08 + Math.random() * 0.07,
-      rotSpeed: (Math.random() - 0.5) * 0.03,
-      lifeTime: 360,
-      age: 0
-    };
+      const smokeParticle = new THREE.Mesh(smokeGeometry, smokeMaterial);
+      
+      smokeParticle.position.set(
+        position.x + (Math.random() - 0.5) * 20,
+        position.y + Math.random() * 8,
+        position.z + (Math.random() - 0.5) * 20
+      );
+      
+      smokeParticle.rotation.z = Math.random() * Math.PI * 2;
+      
+      smokeParticle.userData = {
+        initialY: smokeParticle.position.y,
+        speed: 0.08 + Math.random() * 0.07,
+        rotSpeed: (Math.random() - 0.5) * 0.03,
+        lifeTime: 360,
+        age: 0
+      };
 
-    scene.add(smokeParticle);
-    smokeParticles.push(smokeParticle);
+      scene.add(smokeParticle);
+      smokeParticles.push(smokeParticle);
+    }
   }
 
   if (callback) {
-    setTimeout(callback, 3000);
+    // If it's a Susanoo summon, execute callback immediately without smoke delay
+    if (isSusanooSummon) {
+      callback();
+    } else {
+      setTimeout(callback, 3000); // Existing delay for Gama Bunta smoke
+    }
   }
 }
+
 
 function updateSmokeEffect() {
   smokeParticles.forEach((particle, index) => {
@@ -321,6 +342,59 @@ function removeGlowFromRasengan() {
   rasenganGlowLight.visible = false;
 }
 
+// Function to add purple glow outline to Susanoo
+function addGlowToSusanoo() {
+  if (!susanooModel) return;
+  
+  susanooModel.traverse((child) => {
+    if (child.isMesh) {
+      // Create purple glow outline effect only
+      const glowGeometry = child.geometry.clone();
+      const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x6600cc, // Dark purple color for Susanoo
+        transparent: true,
+        opacity: 0.6,
+        side: THREE.BackSide
+      });
+      
+      const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+      glowMesh.scale.multiplyScalar(1.05); // Slightly larger for outline effect
+      glowMesh.position.copy(child.position);
+      glowMesh.rotation.copy(child.rotation);
+      
+      // Add glow mesh to the same parent as the original mesh
+      if (child.parent) {
+        child.parent.add(glowMesh);
+      } else {
+        scene.add(glowMesh);
+      }
+      
+      susanooGlowMeshes.push(glowMesh);
+    }
+  });
+  
+  // Position purple glow light at Susanoo's position
+  susanooGlowLight.position.copy(susanooModel.position);
+  susanooGlowLight.visible = true;
+}
+
+// Function to remove glow effect from Susanoo
+function removeGlowFromSusanoo() {
+  // Remove glow outline meshes
+  susanooGlowMeshes.forEach(glowMesh => {
+    if (glowMesh.parent) {
+      glowMesh.parent.remove(glowMesh);
+    } else {
+      scene.remove(glowMesh);
+    }
+    glowMesh.geometry.dispose();
+    glowMesh.material.dispose();
+  });
+  susanooGlowMeshes = [];
+  
+  susanooGlowLight.visible = false;
+}
+
 // Loader
 const loader = new GLTFLoader();
 
@@ -400,8 +474,7 @@ loader.load('../glb/naruto.glb', gltf => {
   }, undefined, console.error);
 });
 
-
-
+// Load Sasuke
 loader.load('../glb/sasuke.glb', gltf => {
   sasukeModel = gltf.scene;
   scene.add(sasukeModel);
@@ -416,11 +489,38 @@ loader.load('../glb/sasuke.glb', gltf => {
     }
   });
 
-  console.log('Model Sasuke berhasil dimuat');
+  console.log('Model Sasuke berhasil dimuat, click to activate Susanoo!');
 }, undefined, error => {
   console.error('Gagal memuat model Sasuke:', error);
 });
 
+// Load Susanoo model
+loader.load('../glb/susanoo.glb', gltf => {
+  susanooModel = gltf.scene;
+  susanooModel.position.set(0, 5, 0); // Position around Sasuke
+  susanooModel.scale.set(500, 500, 500); // Adjust scale as needed
+  susanooModel.rotation.set(5, 0, 0); 
+  susanooModel.traverse(obj => {
+    if (obj.isMesh) {
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(mat => {
+            mat.shadowSide = THREE.DoubleSide;
+          });
+        } else {
+          obj.material.shadowSide = THREE.DoubleSide;
+        }
+      }
+    }
+  });
+  
+  susanooLoaded = true;
+  console.log('Susanoo model loaded, click Sasuke to activate!');
+}, undefined, error => {
+  console.error('Error loading Susanoo model:', error);
+});
 
 function loadRasenganModel() {
   return new Promise((resolve, reject) => {
@@ -479,7 +579,7 @@ window.addEventListener('click', event => {
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
 
-  const clickableObjects = [ceilingLamp, monitor, narutoModel];
+  const clickableObjects = [ceilingLamp, monitor, narutoModel, sasukeModel];
   if (rasengan) clickableObjects.push(rasengan);
 
   const intersects = raycaster.intersectObjects(clickableObjects.filter(Boolean), true);
@@ -489,6 +589,29 @@ window.addEventListener('click', event => {
     if (narutoModel && (clicked === narutoModel || narutoModel.children.includes(clicked) || isChildOfNaruto(clicked))) {
       rasenganSpinning = !rasenganSpinning;
       console.log("Naruto clicked! Rasengan spinning:", rasenganSpinning);
+    }
+
+    // Handle Sasuke click for Susanoo toggle
+    if (sasukeModel && (clicked === sasukeModel || sasukeModel.children.includes(clicked) || isChildOfSasuke(clicked))) {
+      if (susanooLoaded) {
+        if (susanooVisible) {
+          // Remove Susanoo
+          removeGlowFromSusanoo();
+          scene.remove(susanooModel);
+          susanooVisible = false;
+          console.log("Susanoo deactivated!");
+        } else {
+          // Add Susanoo without smoke effect
+          createSmokeEffect(sasukeModel.position, () => {
+            scene.add(susanooModel);
+            addGlowToSusanoo();
+            susanooVisible = true;
+            console.log("Susanoo activated!");
+          }, true); // Pass true to indicate it's a Susanoo summon
+        }
+      } else {
+        console.log("Susanoo model not loaded yet!");
+      }
     }
 
     if (clicked === ceilingLamp || ceilingLamp?.children.includes(clicked)) {
@@ -546,6 +669,16 @@ function isChildOfNaruto(object) {
   let parent = object.parent;
   while (parent) {
     if (parent === narutoModel) return true;
+    parent = parent.parent;
+  }
+  return false;
+}
+
+function isChildOfSasuke(object) {
+  if (!sasukeModel) return false;
+  let parent = object.parent;
+  while (parent) {
+    if (parent === sasukeModel) return true;
     parent = parent.parent;
   }
   return false;
@@ -692,6 +825,21 @@ function animate() {
     
     // Also animate the blue point light intensity
     rasenganGlowLight.intensity = 1.2 + Math.sin(glowTime * 3) * 0.6;
+  }
+
+  // Animate Susanoo purple glow effect
+  if (susanooVisible && susanooGlowMeshes.length > 0) {
+    const susanooGlowOpacity = 0.5 + Math.sin(glowTime * 1.5) * 0.3; // Pulsing opacity for outline
+    
+    // Animate Susanoo glow outline opacity and scale
+    susanooGlowMeshes.forEach(glowMesh => {
+      glowMesh.material.opacity = susanooGlowOpacity;
+      const scale = 1.05 + Math.sin(glowTime * 2) * 0.025; // Slight breathing effect
+      glowMesh.scale.setScalar(scale);
+    });
+    
+    // Also animate the purple point light intensity
+    susanooGlowLight.intensity = 2.5 + Math.sin(glowTime * 1.5) * 1.2;
   }
 
   updateSmokeEffect();

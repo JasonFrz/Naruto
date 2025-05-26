@@ -71,7 +71,7 @@ let isRasengan = true;
 let rasenganModel = null;
 let rasenshurikenModel = null;
 let rasengan = null;
-const rasenganSpeed = 0.03;
+const rasenganSpeed = 0.09;
 
 let gamaBunta = null;  // Model Gama Bunta
 
@@ -334,6 +334,17 @@ function animate() {
     if (move.backward) direction.z += 10;
     if (move.left) direction.x -= 10;
     if (move.right) direction.x += 10;
+
+      if (rasengan) {  // Buat speed muter e rasengan
+
+      rasengan.rotation.y += rasenganSpeed;
+      rasengan.rotation.x += rasenganSpeed * 0.2;
+
+    }
+
+  controls.enabled = !monitorOpen;
+  controls.update();
+  renderer.render(scene, camera);
 
     if (direction.lengthSq() > 0) {
       direction.normalize();

@@ -66,6 +66,9 @@ let monitor = null;
 let lampOn = false;
 let monitorOpen = false;
 let cameraLocked = false;
+let S2 = null;
+let S2Loaded = false; // Flag to track if S2 is loaded but not yet added to scene
+let S2Rendered = false; // Flag to track if S2 is currently rendered in scene
 
 let isRasengan = true;
 let rasenganModel = null;
@@ -121,7 +124,7 @@ let smokeTexture;
 const textureLoader = new THREE.TextureLoader();
 
 // Load smoke texture
-textureLoader.load('../asset/smoke.jpg', (texture) => {
+textureLoader.load('../asset/smoke1.gif', (texture) => {
   smokeTexture = texture;
   console.log('Smoke texture loaded successfully');
 }, undefined, (error) => {
@@ -143,12 +146,14 @@ function createSmokeEffect(position, callback) {
 
   // Create multiple smoke particles (lebih banyak dan lebih besar)
   for (let i = 0; i < 25; i++) {
-    const smokeGeometry = new THREE.PlaneGeometry(20, 20); // Ukuran lebih besar
+    const smokeGeometry = new THREE.PlaneGeometry(700, 700); // Ukuran lebih besar
     const smokeMaterial = new THREE.MeshBasicMaterial({
       map: smokeTexture,
       transparent: true,
       opacity: 0.8,
       side: THREE.DoubleSide
+
+      
     });
 
     const smokeParticle = new THREE.Mesh(smokeGeometry, smokeMaterial);
@@ -267,8 +272,9 @@ loader.load('../glb/naruto.glb', gltf => {
   // Load Gama Bunta tapi tidak langsung ditambahkan ke scene
   loader.load('../glb/kodok.glb', gltf => {
     gamaBunta = gltf.scene;
-    gamaBunta.position.set(60, 0, 0);
-    gamaBunta.scale.set(0.07, 0.07, 0.07);
+    gamaBunta.position.set(-230, -80, 0);
+    gamaBunta.scale.set(0.21, 0.21, 0.21);
+    gamaBunta.rotation.set(0,89.7,0);
     gamaBunta.traverse(obj => {
       if (obj.isMesh) {
         obj.castShadow = true;
@@ -323,6 +329,16 @@ function loadRasenshurikenModel() {
   });
 }
 
+// Load S2 model but don't add to scene yet
+loader.load('../glb/S2.glb', gltf => {
+  S2 = gltf.scene;
+  S2.position.set(0, 0, 0);
+  S2Loaded = true;
+  console.log('S2 model loaded, waiting for monitor click to render...');
+}, undefined, error => {
+  console.error('Error loading S2 model:', error);
+});
+
 // Load initial rasengan
 loadRasenganModel().then(model => {
   rasenganModel = model;
@@ -362,6 +378,13 @@ window.addEventListener('click', event => {
       monitorOpen = true;
       cameraLocked = true;
       controls.enabled = false;
+      
+      // Render S2 model when monitor is clicked
+      if (S2Loaded && !S2Rendered) {
+        scene.add(S2);
+        S2Rendered = true;
+        console.log('S2 model rendered to scene!');
+      }
     }
 
     if (rasengan && (clicked === rasengan || rasengan.children.includes(clicked))) {
@@ -400,12 +423,23 @@ function isChildOfNaruto(object) {
 
 // --- Shutdown button event ---
 shutdownBtn.addEventListener('click', () => {
+  // Sembunyikan tampilan desktop
   desktopUI.style.display = 'none';
+
+  // Ubah status monitor dan kamera
   monitorOpen = false;
   cameraLocked = false;
-  controls.enabled = true;
+
+  // Sembunyikan panel ninja info
   ninjaInfo.style.display = 'none';
+
+  // Hapus S2 dari scene jika sedang ditampilkan
+  if (S2Rendered && S2) {
+    scene.remove(S2);
+    S2Rendered = false;
+  }
 });
+
 
 // --- WASD Controls + E key for Gama Bunta ---
 const moveSpeed = 0.05;

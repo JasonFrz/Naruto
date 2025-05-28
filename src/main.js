@@ -480,8 +480,8 @@ loader.load('../glb/sasuke.glb', gltf => {
   scene.add(sasukeModel);
 
   // Atur posisi awal Sasuke (misalnya berdiri di samping Naruto)
-  sasukeModel.position.set(0, 1, 0); // Sesuaikan posisi dengan kebutuhan
-  sasukeModel.scale.set(0.11, 0.11, 0.11);     // Sesuaikan skala jika perlu
+  sasukeModel.position.set(0, 1, -15); // Sesuaikan posisi dengan kebutuhan
+  sasukeModel.scale.set(2.7, 2.7, 2.7);     // Sesuaikan skala jika perlu
   sasukeModel.traverse(child => {
     if (child.isMesh) {
       child.castShadow = true;
@@ -497,9 +497,9 @@ loader.load('../glb/sasuke.glb', gltf => {
 // Load Susanoo model
 loader.load('../glb/susanoo.glb', gltf => {
   susanooModel = gltf.scene;
-  susanooModel.position.set(0, 5, 0); // Position around Sasuke
-  susanooModel.scale.set(500, 500, 500); // Adjust scale as needed
-  susanooModel.rotation.set(5, 0, 0); 
+  susanooModel.position.set(0, 3, -15); // Position around Sasuke
+  susanooModel.scale.set(0.07 ,0.07 ,0.07 ); // Adjust scale as needed
+  susanooModel.rotation.set(0, 0, 0); 
   susanooModel.traverse(obj => {
     if (obj.isMesh) {
       obj.castShadow = true;

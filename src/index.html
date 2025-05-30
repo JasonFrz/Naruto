@@ -99,6 +99,51 @@
       border-radius: 8px;
       border: 2px solid #fff;
     }
+
+    /* Tambahkan ini ke file CSS Anda atau di dalam tag <style> di HTML */
+#crosshair {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px; /* Lebar titik */
+    height: 4px; /* Tinggi titik */
+    background-color: white;
+    border-radius: 50%; /* Membuatnya jadi lingkaran/titik */
+    pointer-events: none; /* PENTING: agar tidak menangkap event mouse */
+    z-index: 10; /* Pastikan di atas canvas */
+    display: none; /* Sembunyikan secara default, tampilkan saat pointer lock */
+    box-shadow: 0 0 5px black; /* Bayangan agar lebih terlihat di berbagai latar */
+}
+
+/* Optional: jika ingin crosshair berbentuk + */
+/*
+#crosshair::before, #crosshair::after {
+    content: '';
+    position: absolute;
+    background-color: white;
+    box-shadow: 0 0 3px black;
+}
+#crosshair::before {
+    width: 2px;
+    height: 10px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) translateY(-4px);
+}
+#crosshair::after {
+    width: 10px;
+    height: 2px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) translateX(-4px);
+}
+#crosshair {
+    width: 0px;
+    height: 0px;
+    background-color: transparent;
+}
+*/
   </style>
   <script type="importmap">
     {
@@ -129,6 +174,8 @@
   </div>
 
   <div id="ninjaInfo"></div>
+  <button id="lockButton">Lock Pointer</button>
+  <div id="crosshair"></div>
 
   <script type="module" src="./main.js"></script>
 </body>

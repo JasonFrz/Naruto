@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import *as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const scene = new THREE.Scene();
@@ -108,15 +108,25 @@ let centerSphereLightOn = true;
 let monitorOpen = false;
 let cameraLocked = false;
 let S2 = null, S2Loaded = false, S2Rendered = false, s2GlowMeshes = [];
-let isRasengan = true, rasenganModel = null, rasenshurikenModel = null, rasengan = null; // isRasengan: true means next click on rasengan model loads Rasenshuriken
-let rasenganSpinning = false, rasenganGlowMeshes = [];
-const rasenganSpeed = 0.12; // This is for local rotation
 
-// MODIFIED: Increased Rasengan orbit radius
-let rasenganOrbitRadius = 6; // The radius of the circular path (increased from 2)
-let rasenganOrbitSpeed = 1.0;  // Radians per second for orbit
-let rasenganOrbitAngle = 0;   // Current angle in the orbit
-let rasenganBasePosition = null; // Center of the orbit, set ONLY when Rasengan is loaded
+// Variabel state untuk Rasengan
+let isRasengan = true; // true jika model saat ini adalah rasengan.glb, false jika rasenshuriken.glb
+let rasenganModel = null; // Referensi ke model rasengan.glb (untuk penggunaan spesifik jika perlu)
+let rasengan = null; // Variabel umum untuk menunjuk ke model rasengan/rasenshuriken yang aktif
+let rasenganSpinning = false, rasenganGlowMeshes = [];
+const rasenganSpeed = 0.12;
+
+let rasenganOrbitRadius = 6;
+let rasenganOrbitSpeed = 1.0;
+let rasenganOrbitAngle = 0;
+let rasenganBasePosition = null;
+
+// State untuk Cho Odama Rasengan dan siklus klik
+let rasenganIsChoOdama = false;
+let currentRasenganBaseScale = new THREE.Vector3(1, 1, 1);
+const choOdamaScaleMultiplier = 1.8;
+let nextClickOnNormalRasenganChangesModel = false; // BARU: Jika true, klik pada Rasengan normal akan ganti model, jika false akan jadi Cho Odama.
+
 
 let sasukeModel = null, gamaBunta = null, narutoModel = null, gamaBuntaVisible = false;
 let smokeParticles = [], isSpawning = false;
@@ -275,13 +285,10 @@ function removeGlowFromS2() {
 function addGlowToRasengan() {
     if (!rasengan) {
         console.warn("addGlowToRasengan called but rasengan model is null.");
-        rasenganGlowLight.visible = false; // Ensure light is off if no model
+        rasenganGlowLight.visible = false;
         return;
     }
-    // removeGlowFromRasengan(); // Call to removeGlowFromRasengan is not strictly needed here if addGlow always sets light state correctly
-                               // but keeping it for safety doesn't hurt.
-
-    rasenganGlowMeshes.forEach(gm => { // Clear any old glow meshes if they somehow existed
+    rasenganGlowMeshes.forEach(gm => {
         if (gm.parent) gm.parent.remove(gm); else scene.remove(gm);
         gm.geometry.dispose(); gm.material.dispose();
     });
@@ -292,7 +299,6 @@ function addGlowToRasengan() {
 
     rasenganGlowLight.visible = true;
     rasenganGlowLight.intensity = 50;
-    console.log("Rasengan light activated. Intensity:", rasenganGlowLight.intensity);
 }
 function removeGlowFromRasengan() {
     rasenganGlowMeshes.forEach(gm => {
@@ -362,7 +368,7 @@ function loadDynamicModel(path, position, scale = null) {
             model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
             console.log(`Successfully loaded: ${path}`);
             resolve(model);
-        }, 
+        },
         (xhr) => { console.log(`${path} ${(xhr.loaded / xhr.total * 100).toFixed(2)}% loaded`); },
         error => {
             console.error(`Error loading model ${path}:`, error);
@@ -372,17 +378,24 @@ function loadDynamicModel(path, position, scale = null) {
 }
 
 const initialRasenganPosition = new THREE.Vector3(-8.8, 9.9, 13.9);
-loadDynamicModel('../glb/rasengan.glb', initialRasenganPosition).then(model => {
-    rasenganModel = model; // Keep a reference if needed for specific type
+loadDynamicModel('../glb/rasengan.glb', initialRasenganPosition, null).then(model => {
+    rasenganModel = model;
     rasengan = rasenganModel;
-    rasenganBasePosition = initialRasenganPosition.clone(); // Store its base position for orbiting
+    rasenganBasePosition = initialRasenganPosition.clone();
+    currentRasenganBaseScale.copy(rasengan.scale);
     scene.add(rasengan);
     addGlowToRasengan();
-    console.log('Initial Rasengan loaded and glow added.');
+    console.log('Initial Rasengan loaded and glow added. Click to make Cho Odama.');
+    isRasengan = true;
+    rasenganIsChoOdama = false;
+    nextClickOnNormalRasenganChangesModel = false; // Setelah load awal, klik pertama adalah untuk membesar
 }).catch(e => {
     console.error('FATAL: Error loading initial Rasengan:', e);
-    rasengan = null; // Ensure rasengan is null if load fails
+    rasengan = null;
     rasenganBasePosition = null;
+    isRasengan = true;
+    rasenganIsChoOdama = false;
+    nextClickOnNormalRasenganChangesModel = false;
 });
 
 loader.load('../glb/S2.glb', gltf => {
@@ -398,43 +411,35 @@ window.addEventListener('click', event => {
 
     raycaster.setFromCamera(mouse, camera);
     const clickables = [ceilingLamp, monitor, narutoModel, sasukeModel, rasengan].filter(Boolean);
-    
-    // This part for identifying targetName has been kept as is from your provided code.
-    let targetName = null; 
-    if (clickables.length === 0 && targetName !== "rasengan") { 
-         // console.log("No clickable objects intersected, and not trying to click a potentially null rasengan."); // Minor adjustment to condition text
-         // return; // Potentially return if no clickables and not aiming for rasengan logic
-    }
+
+    let targetName = null;
     const intersects = raycaster.intersectObjects(clickables, true);
 
     if (intersects.length > 0) {
         let clickedRootObject = intersects[0].object;
-        // let tempTargetName = null; // tempTargetName was declared but targetName is used directly below
-        for(const obj of clickables) { 
+        for(const obj of clickables) {
             if (obj === clickedRootObject || isChildOf(clickedRootObject, obj)) {
                 if (obj === ceilingLamp) targetName = "ceilingLamp";
                 else if (obj === monitor) targetName = "monitor";
                 else if (obj === narutoModel) targetName = "narutoModel";
                 else if (obj === sasukeModel) targetName = "sasukeModel";
-                else if (obj === rasengan) { 
+                else if (obj === rasengan) {
                     targetName = "rasengan";
                 }
                 break;
             }
         }
-        // targetName = tempTargetName; // This line is redundant if targetName is assigned directly
     } else {
         targetName = null;
     }
-    
+
     switch (targetName) {
         case "narutoModel":
             rasenganSpinning = !rasenganSpinning;
-            // rasenganBasePosition is NOT changed here. It's set when model loads. This is correct.
             console.log("Rasengan spinning & orbiting toggled:", rasenganSpinning);
             if (!rasengan && rasenganSpinning) {
                 console.warn("Trying to spin a non-existent Rasengan. Load it first.");
-                rasenganSpinning = false; // Can't spin nothing
+                rasenganSpinning = false;
             }
             break;
         case "sasukeModel":
@@ -471,33 +476,76 @@ window.addEventListener('click', event => {
             if (crosshair) crosshair.style.display = 'none';
             if (S2Loaded && !S2Rendered && S2) { scene.add(S2); addGlowToS2(); S2Rendered = true; console.log('S2 rendered.'); }
             break;
-        case "rasengan": 
+        case "rasengan":
             if (rasengan && rasengan.parent) {
-                scene.remove(rasengan);
-                console.log("Previous Rasengan model removed from scene.");
+                if (rasenganIsChoOdama) {
+                    // Saat ini Cho Odama, kembalikan ke ukuran normal
+                    rasengan.scale.copy(currentRasenganBaseScale);
+                    rasenganIsChoOdama = false;
+                    // MODIFIKASI: Set agar klik berikutnya kembali membesarkan, bukan ganti model
+                    nextClickOnNormalRasenganChangesModel = false; 
+                    // MODIFIKASI LOG: Sesuaikan pesan log
+                    console.log(`Model ${isRasengan ? 'Rasengan' : 'Rasenshuriken'} kembali ke ukuran normal. Klik lagi untuk menjadi Cho Odama.`);
+                    addGlowToRasengan(); // Perbarui glow
+                } else {
+                    // Saat ini ukuran normal, cek apakah mau membesar atau ganti model
+                    // Karena nextClickOnNormalRasenganChangesModel akan selalu false dalam siklus ini,
+                    // maka blok 'if' di bawah ini untuk ganti model tidak akan tercapai melalui klik Rasengan.
+                    if (nextClickOnNormalRasenganChangesModel) { 
+                        // Bagian ini (ganti model) tidak akan dieksekusi karena perubahan di atas.
+                        // Kode tetap ada, namun tidak akan dijangkau oleh klik rasengan untuk siklus Odama.
+                        if (rasengan.parent) scene.remove(rasengan);
+                        removeGlowFromRasengan();
+                        rasengan = null;
+                        rasenganBasePosition = null;
+
+                        const loadRasenshurikenNext = isRasengan; // Jika saat ini Rasengan, berikutnya Rasenshuriken
+                        const modelToLoad = loadRasenshurikenNext ? 'rasenshuriken' : 'rasengan';
+                        const modelPath = `../glb/${modelToLoad}.glb`;
+                        const newPos = loadRasenshurikenNext
+                            ? new THREE.Vector3(-8.8, 11.2, 13.9) // Posisi Rasenshuriken
+                            : new THREE.Vector3(-8.8, 9.9, 13.9);  // Posisi Rasengan
+                        const newScaleForModel = loadRasenshurikenNext
+                            ? new THREE.Vector3(2.5, 2.5, 2.5)     // Skala dasar Rasenshuriken
+                            : null;                                // Skala dasar Rasengan (gunakan default)
+
+                        console.log(`Mengganti model. Memuat ${modelToLoad}.`);
+                        loadDynamicModel(modelPath, newPos, newScaleForModel).then(loadedModel => {
+                            rasengan = loadedModel;
+                            if (newScaleForModel) {
+                                currentRasenganBaseScale.copy(newScaleForModel);
+                            } else {
+                                currentRasenganBaseScale.copy(rasengan.scale); // Ambil skala dari model yang di-load
+                            }
+                            rasenganBasePosition = newPos.clone();
+                            scene.add(rasengan);
+                            addGlowToRasengan();
+
+                            isRasengan = !loadRasenshurikenNext; // Perbarui state model saat ini
+                            rasenganIsChoOdama = false;         // Model baru selalu ukuran normal
+                            nextClickOnNormalRasenganChangesModel = false; // Setelah ganti model, klik berikutnya adalah untuk membesar
+                            console.log(`${modelToLoad} dimuat. Model dasar saat ini: ${isRasengan ? 'Rasengan' : 'Rasenshuriken'}. Klik berikutnya akan jadi Cho Odama.`);
+                        }).catch(e => {
+                            console.error(`Gagal memuat atau memproses ${modelToLoad}:`, e);
+                            rasenganIsChoOdama = false;
+                            nextClickOnNormalRasenganChangesModel = false; // Reset state jika error
+                        });
+
+                    } else {
+                        // Saatnya membesar menjadi Cho Odama
+                        rasengan.scale.copy(currentRasenganBaseScale).multiplyScalar(choOdamaScaleMultiplier);
+                        rasenganIsChoOdama = true;
+                        // nextClickOnNormalRasenganChangesModel tetap false, karena setelah jadi Cho Odama, klik berikutnya akan mengembalikan ke normal
+                        console.log(`Model ${isRasengan ? 'Rasengan' : 'Rasenshuriken'} menjadi Cho Odama. Klik lagi untuk kembali normal.`);
+                        addGlowToRasengan();
+                    }
+                }
+            } else {
+                console.log("Model Rasengan tidak tersedia untuk diinteraksi.");
+                // Reset state jika tidak ada model
+                rasenganIsChoOdama = false;
+                nextClickOnNormalRasenganChangesModel = false;
             }
-            removeGlowFromRasengan(); 
-            rasengan = null;          
-            rasenganBasePosition = null; // Correctly clear base position for the old model
-
-            const modelToLoad = isRasengan ? 'rasenshuriken' : 'rasengan';
-            const modelPath = `../glb/${modelToLoad}.glb`;
-            const newPos = isRasengan ? new THREE.Vector3(-8.8, 11.2, 13.9) : new THREE.Vector3(-8.8, 9.9, 13.9); 
-            const newScale = isRasengan ? new THREE.Vector3(2.5, 2.5, 2.5) : null; 
-
-            console.log(`Preparing to load ${modelToLoad}. Current isRasengan flag (for next load): ${!isRasengan}`);
-
-            loadDynamicModel(modelPath, newPos, newScale).then(loadedModel => {
-                rasengan = loadedModel;
-                rasenganBasePosition = newPos.clone(); // Correctly set new base position for orbit
-                scene.add(rasengan);
-                addGlowToRasengan();
-                console.log(`${modelToLoad} loaded and added to scene. Glow on.`);
-                isRasengan = !isRasengan; 
-            }).catch(e => {
-                console.error(`Failed to load or process ${modelToLoad}:`, e);
-                // rasengan and rasenganBasePosition remain null
-            });
             break;
     }
 });
@@ -556,7 +604,7 @@ window.addEventListener('keyup', e => {
             isFirstPositionActive = !isFirstPositionActive; console.log("Cam Toggled. FP Active:", isFirstPositionActive);
             break;
         case 'shift':
-            userMoveSpeed = 0.3; 
+            userMoveSpeed = 0.3;
             break;
     }
 });
@@ -578,67 +626,56 @@ function animate() {
         camForward.normalize();
 
         const camRight = new THREE.Vector3();
-        camRight.crossVectors(camera.up, camForward).normalize(); // Should be camera.up, not camForward.cross(camera.up)
-        
-        const effectiveSpeed = userMoveSpeed; 
+        camRight.crossVectors(camera.up, camForward).negate().normalize();
+
+        const effectiveSpeed = userMoveSpeed;
         const moveDirection = new THREE.Vector3();
 
         if (move.forward) moveDirection.add(camForward);
         if (move.backward) moveDirection.sub(camForward);
-        if (move.left) moveDirection.add(camRight); // Corrected: Add for left
-        if (move.right) moveDirection.sub(camRight); // Corrected: Subtract for right
-        
+        if (move.left) moveDirection.sub(camRight);
+        if (move.right) moveDirection.add(camRight);
+
         if (moveDirection.lengthSq() > 0) {
             moveDirection.normalize();
-            camera.position.addScaledVector(moveDirection, effectiveSpeed); // Using effectiveSpeed directly
+            camera.position.addScaledVector(moveDirection, effectiveSpeed);
         }
     }
 
     if (rasengan && rasenganSpinning) {
-        // Local spin
-        const spinDelta = rasenganSpeed * delta * 60; 
+        const spinDelta = rasenganSpeed * delta * 60;
         rasengan.rotation.y += spinDelta;
         rasengan.rotation.x += spinDelta * 0.2;
 
-        // Circular orbit
-        if (rasenganBasePosition) { 
+        if (rasenganBasePosition) {
             rasenganOrbitAngle += rasenganOrbitSpeed * delta;
             rasengan.position.x = rasenganBasePosition.x + rasenganOrbitRadius * Math.cos(rasenganOrbitAngle);
             rasengan.position.z = rasenganBasePosition.z + rasenganOrbitRadius * Math.sin(rasenganOrbitAngle);
-            rasengan.position.y = rasenganBasePosition.y; // + Math.sin(rasenganOrbitAngle * 2) * 0.5; // Optional Y bob
-        } else if (rasenganSpinning) {
-            // console.warn("Rasengan spinning but no base position for orbit.");
+            rasengan.position.y = rasenganBasePosition.y;
         }
     }
     glowTime += delta;
 
     const updateGlowEffect = (glowMeshes, baseOpacity, opacityVar, baseScale, scaleVar, timeMult, lightObj, baseIntensity, intensityVar) => {
-        if (lightObj && (lightObj.visible || intensityVar !==0)) { // Check lightObj.visible before accessing intensity for safety
+        if (lightObj && (lightObj.visible || intensityVar !==0)) {
              lightObj.intensity = baseIntensity + Math.sin(glowTime * timeMult) * intensityVar;
         }
         if (glowMeshes.length > 0) {
             const currentOpacity = baseOpacity + Math.sin(glowTime * timeMult) * opacityVar;
-            const currentScaleFactor = baseScale + Math.sin(glowTime * (timeMult + 0.5)) * scaleVar; // Adjusted time for scale
-            
             glowMeshes.forEach(gm => {
                 gm.material.opacity = currentOpacity;
-                // This assumes glow meshes are scaled relative to 1 initially, then multiplied by currentScaleFactor.
-                // If createGlowMesh applies parent scale * scaleFactor, this is fine.
-                // For more robust relative scaling, one might store original scale and apply currentScaleFactor to that.
-                // However, current method should work if original scale is 1 or if createGlowMesh handles it.
-                gm.scale.set(currentScaleFactor, currentScaleFactor, currentScaleFactor); 
             });
         }
     };
 
     updateGlowEffect(s2GlowMeshes, 0.3, 0.2, 1.06, 0.02, 2, s2GlowLight, 1.5, 0.8);
 
-    if (rasengan) { 
-        updateGlowEffect(rasenganGlowMeshes, 0, 0, 1, 0, 3, rasenganGlowLight, 50, 25); // Assuming no visual glow mesh for rasengan, just light
-        if (rasenganGlowLight.visible) { 
+    if (rasengan) {
+        updateGlowEffect([], 0, 0, 1, 0, 3, rasenganGlowLight, 50, 25);
+        if (rasenganGlowLight.visible && rasengan.parent) {
              rasenganGlowLight.position.copy(rasengan.position);
         }
-    } else { 
+    } else {
         if (rasenganGlowLight.visible) {
             rasenganGlowLight.visible = false;
         }
@@ -656,6 +693,6 @@ function animate() {
 }
 document.addEventListener('DOMContentLoaded', () => {
     if (crosshair) crosshair.style.display = 'none';
-    userMoveSpeed = 0.3; // Ensure userMoveSpeed is initialized before animate might use it
+    userMoveSpeed = 0.3;
     animate();
 });

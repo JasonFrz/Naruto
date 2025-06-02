@@ -22,7 +22,7 @@ scene.add(ambientLight);
 
 const pointLight = new THREE.PointLight(0xffffff, 8, 50, 0.5);
 pointLight.position.set(0, 12, 0);
-pointLight.visible = false; 
+pointLight.visible = false;
 pointLight.castShadow = true;
 pointLight.shadow.mapSize.width = 1024;
 pointLight.shadow.mapSize.height = 1024;
@@ -33,13 +33,13 @@ pointLight.shadow.normalBias = 0.05;
 scene.add(pointLight);
 
 const hemiLight = new THREE.HemisphereLight(0xffffff, 0x222222, 0.8);
-hemiLight.visible = false; 
+hemiLight.visible = false;
 scene.add(hemiLight);
 
 const dirLight = new THREE.DirectionalLight(0xffffff, 3);
 dirLight.position.set(-10, 15, 8);
 dirLight.target.position.set(0, 0, 0);
-dirLight.visible = false; 
+dirLight.visible = false;
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.width = 1024;
 dirLight.shadow.mapSize.height = 1024;
@@ -57,31 +57,30 @@ scene.add(dirLight.target);
 const sphereLampSize = 5;
 const centerSphereGeometry = new THREE.SphereGeometry(sphereLampSize, 32, 32);
 const centerSphereMaterial = new THREE.MeshStandardMaterial({
-    color: 0xffff00, 
-    emissive: 0xffff00, 
-    emissiveIntensity: 1.0 
+    color: 0xffff00,
+    emissive: 0xffff00,
+    emissiveIntensity: 1.0
 });
 
 
 const centerSphereMesh = new THREE.Mesh(centerSphereGeometry, centerSphereMaterial);
-centerSphereMesh.position.set(3.7, sphereLampSize + 14.8, 3.55); 
+centerSphereMesh.position.set(3.7, sphereLampSize + 14.8, 3.55);
 scene.add(centerSphereMesh);
 
-const centerSphereLight = new THREE.PointLight(0xffddaa, 7, 60, 0.9); 
-//centerSphereLight.position.copy(centerSphereMesh.position);
-const lightOffsetY = 1.2; // How much lower the light should be than the mesh center
+const centerSphereLight = new THREE.PointLight(0xffddaa, 7, 60, 0.9);
+const lightOffsetY = 1.2;
 centerSphereLight.position.set(
     centerSphereMesh.position.x,
-    centerSphereMesh.position.y - lightOffsetY, // Position light slightly below the mesh center
+    centerSphereMesh.position.y - lightOffsetY,
     centerSphereMesh.position.z
 );
 centerSphereLight.castShadow = true;
-centerSphereLight.visible = true; 
+centerSphereLight.visible = true;
 centerSphereLight.shadow.mapSize.width = 1024;
 centerSphereLight.shadow.mapSize.height = 1024;
 centerSphereLight.shadow.camera.near = 0.5;
 centerSphereLight.shadow.camera.far = 70;
-centerSphereLight.shadow.bias = -0.005; 
+centerSphereLight.shadow.bias = -0.005;
 centerSphereLight.shadow.normalBias = 0.05;
 scene.add(centerSphereLight);
 
@@ -89,7 +88,7 @@ const s2GlowLight = new THREE.PointLight(0x9966ff, 2, 30, 0.3);
 s2GlowLight.visible = false;
 scene.add(s2GlowLight);
 
-const rasenganGlowLight = new THREE.PointLight(0x0088ff, 1.5, 25, 0.4);
+const rasenganGlowLight = new THREE.PointLight(0x0088ff, 50, 50, 1);
 rasenganGlowLight.visible = false;
 scene.add(rasenganGlowLight);
 
@@ -103,15 +102,22 @@ const crosshair = document.getElementById('crosshair');
 
 let ceilingLamp = null;
 let monitor = null;
-let lampOn = false; 
-let centerSphereLightOn = true; 
+let lampOn = false;
+let centerSphereLightOn = true;
 
 let monitorOpen = false;
 let cameraLocked = false;
 let S2 = null, S2Loaded = false, S2Rendered = false, s2GlowMeshes = [];
-let isRasengan = true, rasenganModel = null, rasenshurikenModel = null, rasengan = null;
-let rasenganSpinning = false, rasenganGlowMeshes = []; // rasenganGlowMeshes will remain empty
-const rasenganSpeed = 0.12; // This is for rotation, not movement
+let isRasengan = true, rasenganModel = null, rasenshurikenModel = null, rasengan = null; // isRasengan: true means next click on rasengan model loads Rasenshuriken
+let rasenganSpinning = false, rasenganGlowMeshes = [];
+const rasenganSpeed = 0.12; // This is for local rotation
+
+// MODIFIED: Increased Rasengan orbit radius
+let rasenganOrbitRadius = 6; // The radius of the circular path (increased from 2)
+let rasenganOrbitSpeed = 1.0;  // Radians per second for orbit
+let rasenganOrbitAngle = 0;   // Current angle in the orbit
+let rasenganBasePosition = null; // Center of the orbit, set ONLY when Rasengan is loaded
+
 let sasukeModel = null, gamaBunta = null, narutoModel = null, gamaBuntaVisible = false;
 let smokeParticles = [], isSpawning = false;
 let susanooModel = null, susanooLoaded = false, susanooVisible = false, susanooGlowMeshes = [];
@@ -236,28 +242,28 @@ function updateSmokeEffect() {
 function createGlowMesh(child, color, scaleFactor, initialOpacity = 0.4, blending = THREE.NormalBlending) {
     const glowGeometry = child.geometry.clone();
     const glowMaterial = new THREE.MeshBasicMaterial({
-        color: color, transparent: true, opacity: initialOpacity, 
-        side: THREE.BackSide, depthWrite: false, blending: blending 
+        color: color, transparent: true, opacity: initialOpacity,
+        side: THREE.BackSide, depthWrite: false, blending: blending
     });
     const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-    
+
     if (child.parent) {
         child.parent.add(glowMesh);
         glowMesh.position.copy(child.position);
         glowMesh.quaternion.copy(child.quaternion);
         glowMesh.scale.copy(child.scale).multiplyScalar(scaleFactor);
-    } else { 
-        scene.add(glowMesh); 
-        glowMesh.position.copy(child.position); 
-        glowMesh.rotation.copy(child.rotation); 
-        glowMesh.scale.multiplyScalar(scaleFactor); 
+    } else {
+        scene.add(glowMesh);
+        glowMesh.position.copy(child.position);
+        glowMesh.rotation.copy(child.rotation);
+        glowMesh.scale.multiplyScalar(scaleFactor);
     }
     return glowMesh;
 }
 
 function addGlowToS2() {
     if (!S2) return; removeGlowFromS2();
-    S2.traverse((child) => { if (child.isMesh) s2GlowMeshes.push(createGlowMesh(child, 0x9966ff, 1.06, 0.4)); }); 
+    S2.traverse((child) => { if (child.isMesh) s2GlowMeshes.push(createGlowMesh(child, 0x9966ff, 1.06, 0.4)); });
     if (S2.parent) s2GlowLight.position.setFromMatrixPosition(S2.matrixWorld); else s2GlowLight.position.copy(S2.position);
     s2GlowLight.visible = true;
 }
@@ -267,29 +273,37 @@ function removeGlowFromS2() {
 }
 
 function addGlowToRasengan() {
-    if (!rasengan) return; 
-    removeGlowFromRasengan(); // Clears the array and hides the light
-    
-    // rasenganGlowMeshes array remains empty as per request to remove the glow mesh
-    // rasenganGlowMeshes.push(...) is NOT called.
+    if (!rasengan) {
+        console.warn("addGlowToRasengan called but rasengan model is null.");
+        rasenganGlowLight.visible = false; // Ensure light is off if no model
+        return;
+    }
+    // removeGlowFromRasengan(); // Call to removeGlowFromRasengan is not strictly needed here if addGlow always sets light state correctly
+                               // but keeping it for safety doesn't hurt.
 
-    if (rasengan.parent) rasenganGlowLight.position.setFromMatrixPosition(rasengan.matrixWorld); 
+    rasenganGlowMeshes.forEach(gm => { // Clear any old glow meshes if they somehow existed
+        if (gm.parent) gm.parent.remove(gm); else scene.remove(gm);
+        gm.geometry.dispose(); gm.material.dispose();
+    });
+    rasenganGlowMeshes = [];
+
+    if (rasengan.parent) rasenganGlowLight.position.setFromMatrixPosition(rasengan.matrixWorld);
     else rasenganGlowLight.position.copy(rasengan.position);
-    
+
     rasenganGlowLight.visible = true;
-    rasenganGlowLight.intensity = 1.5; 
-    console.log("Rasengan light activated (no glow mesh).");
+    rasenganGlowLight.intensity = 50;
+    console.log("Rasengan light activated. Intensity:", rasenganGlowLight.intensity);
 }
 function removeGlowFromRasengan() {
-    // This function now primarily ensures the light is hidden and the array (if it ever had content) is cleared.
-    rasenganGlowMeshes.forEach(gm => { 
-        if (gm.parent) gm.parent.remove(gm); 
-        else scene.remove(gm); 
-        gm.geometry.dispose(); 
-        gm.material.dispose(); 
+    rasenganGlowMeshes.forEach(gm => {
+        if (gm.parent) gm.parent.remove(gm);
+        else scene.remove(gm);
+        gm.geometry.dispose();
+        gm.material.dispose();
     });
-    rasenganGlowMeshes = []; 
-    rasenganGlowLight.visible = false; // Hide the light when "glow" is removed
+    rasenganGlowMeshes = [];
+    rasenganGlowLight.visible = false;
+    console.log("Rasengan glow (light) removed.");
 }
 
 function addGlowToSusanoo() {
@@ -297,7 +311,7 @@ function addGlowToSusanoo() {
     susanooModel.traverse((child) => { if (child.isMesh) susanooGlowMeshes.push(createGlowMesh(child, 0x6600cc, 1.05, 0.6)); });
     if (susanooModel.parent) susanooGlowLight.position.setFromMatrixPosition(susanooModel.matrixWorld); else susanooGlowLight.position.copy(susanooModel.position);
     susanooGlowLight.visible = true;
-    susanooGlowLight.intensity = 3.0; 
+    susanooGlowLight.intensity = 3.0;
 }
 function removeGlowFromSusanoo() {
     susanooGlowMeshes.forEach(gm => { if (gm.parent) gm.parent.remove(gm); else scene.remove(gm); gm.geometry.dispose(); gm.material.dispose(); });
@@ -320,16 +334,16 @@ loader.load('../glb/naruto.glb', gltf => {
     narutoModel.traverse(obj => { if (obj.isMesh) { obj.castShadow = true; obj.receiveShadow = true; if (obj.material) { const mats = Array.isArray(obj.material) ? obj.material : [obj.material]; mats.forEach(mat => mat.shadowSide = THREE.FrontSide);}}});
     scene.add(narutoModel); console.log('Naruto model loaded.');
     loader.load('../glb/kodok.glb', gltf => {
-        gamaBunta = gltf.scene; 
-        gamaBunta.position.set(-230, -80, 0); 
-        gamaBunta.scale.set(0.21, 0.21, 0.21); 
+        gamaBunta = gltf.scene;
+        gamaBunta.position.set(-230, -80, 0);
+        gamaBunta.scale.set(0.21, 0.21, 0.21);
         gamaBunta.rotation.set(0, Math.PI / 180 * 89.7, 0);
         gamaBunta.traverse(obj => { if (obj.isMesh) { obj.castShadow = true; obj.receiveShadow = true; if (obj.material) { const mats = Array.isArray(obj.material) ? obj.material : [obj.material]; mats.forEach(mat => mat.shadowSide = THREE.FrontSide);}}});
         console.log('Gama Bunta loaded at fixed position.');
     }, undefined, e => console.error('Error loading Gama Bunta:', e));
 }, undefined, e => console.error('Error loading Naruto:', e));
 loader.load('../glb/sasuke.glb', gltf => {
-    sasukeModel = gltf.scene; sasukeModel.position.set(0, 1, -15); sasukeModel.scale.set(2.6, 2.6, 2.6); 
+    sasukeModel = gltf.scene; sasukeModel.position.set(0, 1, -15); sasukeModel.scale.set(2.6, 2.6, 2.6);
     sasukeModel.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
     scene.add(sasukeModel); console.log('Sasuke model loaded.');
 }, undefined, e => console.error('Error loading Sasuke:', e));
@@ -338,19 +352,39 @@ loader.load('../glb/susanoo.glb', gltf => {
     susanooModel.traverse(obj => { if (obj.isMesh) { obj.castShadow = true; obj.receiveShadow = true; if (obj.material) { const mats = Array.isArray(obj.material) ? obj.material : [obj.material]; mats.forEach(mat => mat.shadowSide = THREE.FrontSide);}}});
     susanooLoaded = true; console.log('Susanoo model loaded.');
 }, undefined, e => console.error('Error loading Susanoo:', e));
+
 function loadDynamicModel(path, position, scale = null) {
+    console.log(`Attempting to load dynamic model: ${path}`);
     return new Promise((resolve, reject) => {
         loader.load(path, gltf => {
             const model = gltf.scene; model.position.copy(position);
             if (scale) model.scale.copy(scale);
             model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+            console.log(`Successfully loaded: ${path}`);
             resolve(model);
-        }, undefined, reject);
+        }, 
+        (xhr) => { console.log(`${path} ${(xhr.loaded / xhr.total * 100).toFixed(2)}% loaded`); },
+        error => {
+            console.error(`Error loading model ${path}:`, error);
+            reject(error);
+        });
     });
 }
-loadDynamicModel('../glb/rasengan.glb', new THREE.Vector3(-8.8, 9.9, 13.9)).then(model => {
-    rasenganModel = model; rasengan = rasenganModel; scene.add(rasengan); addGlowToRasengan(); console.log('Initial Rasengan loaded.');
-}).catch(e => console.error('Error loading initial Rasengan:', e));
+
+const initialRasenganPosition = new THREE.Vector3(-8.8, 9.9, 13.9);
+loadDynamicModel('../glb/rasengan.glb', initialRasenganPosition).then(model => {
+    rasenganModel = model; // Keep a reference if needed for specific type
+    rasengan = rasenganModel;
+    rasenganBasePosition = initialRasenganPosition.clone(); // Store its base position for orbiting
+    scene.add(rasengan);
+    addGlowToRasengan();
+    console.log('Initial Rasengan loaded and glow added.');
+}).catch(e => {
+    console.error('FATAL: Error loading initial Rasengan:', e);
+    rasengan = null; // Ensure rasengan is null if load fails
+    rasenganBasePosition = null;
+});
+
 loader.load('../glb/S2.glb', gltf => {
     S2 = gltf.scene; S2.position.set(0,0,0); S2Loaded = true; console.log('S2 model loaded.');
 }, undefined, e => console.error('Error loading S2:', e));
@@ -364,74 +398,107 @@ window.addEventListener('click', event => {
 
     raycaster.setFromCamera(mouse, camera);
     const clickables = [ceilingLamp, monitor, narutoModel, sasukeModel, rasengan].filter(Boolean);
-    if (clickables.length === 0) return;
+    
+    // This part for identifying targetName has been kept as is from your provided code.
+    let targetName = null; 
+    if (clickables.length === 0 && targetName !== "rasengan") { 
+         // console.log("No clickable objects intersected, and not trying to click a potentially null rasengan."); // Minor adjustment to condition text
+         // return; // Potentially return if no clickables and not aiming for rasengan logic
+    }
     const intersects = raycaster.intersectObjects(clickables, true);
 
     if (intersects.length > 0) {
         let clickedRootObject = intersects[0].object;
-        let targetName = null;
-        for(const obj of clickables) {
+        // let tempTargetName = null; // tempTargetName was declared but targetName is used directly below
+        for(const obj of clickables) { 
             if (obj === clickedRootObject || isChildOf(clickedRootObject, obj)) {
                 if (obj === ceilingLamp) targetName = "ceilingLamp";
                 else if (obj === monitor) targetName = "monitor";
                 else if (obj === narutoModel) targetName = "narutoModel";
                 else if (obj === sasukeModel) targetName = "sasukeModel";
-                else if (obj === rasengan) targetName = "rasengan";
+                else if (obj === rasengan) { 
+                    targetName = "rasengan";
+                }
                 break;
             }
         }
+        // targetName = tempTargetName; // This line is redundant if targetName is assigned directly
+    } else {
+        targetName = null;
+    }
+    
+    switch (targetName) {
+        case "narutoModel":
+            rasenganSpinning = !rasenganSpinning;
+            // rasenganBasePosition is NOT changed here. It's set when model loads. This is correct.
+            console.log("Rasengan spinning & orbiting toggled:", rasenganSpinning);
+            if (!rasengan && rasenganSpinning) {
+                console.warn("Trying to spin a non-existent Rasengan. Load it first.");
+                rasenganSpinning = false; // Can't spin nothing
+            }
+            break;
+        case "sasukeModel":
+            if (susanooLoaded && sasukeModel) {
+                if (susanooVisible) {
+                    removeGlowFromSusanoo(); if (susanooModel.parent) scene.remove(susanooModel); susanooVisible = false; console.log("Susanoo deactivated.");
+                } else {
+                    susanooModel.position.copy(sasukeModel.position).y += 1.5;
+                    createSmokeEffect(sasukeModel.position, () => {
+                        scene.add(susanooModel); addGlowToSusanoo(); susanooVisible = true; console.log("Susanoo activated.");
+                    }, true);
+                }
+            } else console.log("Susanoo/Sasuke model not ready.");
+            break;
+        case "ceilingLamp":
+            lampOn = !lampOn;
+            centerSphereLightOn = !lampOn;
 
-        switch (targetName) {
-            case "narutoModel":
-                rasenganSpinning = !rasenganSpinning; console.log("Rasengan spinning:", rasenganSpinning);
-                break;
-            case "sasukeModel":
-                if (susanooLoaded && sasukeModel) {
-                    if (susanooVisible) {
-                        removeGlowFromSusanoo(); if (susanooModel.parent) scene.remove(susanooModel); susanooVisible = false; console.log("Susanoo deactivated.");
-                    } else {
-                        susanooModel.position.copy(sasukeModel.position).y += 1.5; 
-                        createSmokeEffect(sasukeModel.position, () => {
-                            scene.add(susanooModel); addGlowToSusanoo(); susanooVisible = true; console.log("Susanoo activated.");
-                        }, true);
-                    }
-                } else console.log("Susanoo/Sasuke model not ready.");
-                break;
-            case "ceilingLamp":
-                lampOn = !lampOn; 
-                centerSphereLightOn = !lampOn; 
+            pointLight.visible = lampOn;
+            hemiLight.visible = lampOn;
+            dirLight.visible = lampOn;
+            ambientLight.intensity = lampOn ? 0.3 : 0.05;
+            scene.background = new THREE.Color(lampOn ? 0x333333 : 0x000000);
 
-                pointLight.visible = lampOn;
-                hemiLight.visible = lampOn;
-                dirLight.visible = lampOn;
-                ambientLight.intensity = lampOn ? 0.3 : 0.05;
-                scene.background = new THREE.Color(lampOn ? 0x333333 : 0x000000);
+            centerSphereLight.visible = centerSphereLightOn;
+            centerSphereLight.intensity = centerSphereLightOn ? 7 : 0;
+            centerSphereMesh.material.emissiveIntensity = centerSphereLightOn ? 1.0 : 0.1;
 
-                centerSphereLight.visible = centerSphereLightOn;
-                centerSphereLight.intensity = centerSphereLightOn ? 7 : 0;
-                centerSphereMesh.material.emissiveIntensity = centerSphereLightOn ? 1.0 : 0.1; 
+            console.log("Main Lamp ON:", lampOn, "Sphere Lamp ON:", centerSphereLightOn);
+            break;
+        case "monitor":
+            desktopUI.style.display = 'block'; monitorOpen = true; cameraLocked = true;
+            if (document.pointerLockElement) document.exitPointerLock();
+            if (crosshair) crosshair.style.display = 'none';
+            if (S2Loaded && !S2Rendered && S2) { scene.add(S2); addGlowToS2(); S2Rendered = true; console.log('S2 rendered.'); }
+            break;
+        case "rasengan": 
+            if (rasengan && rasengan.parent) {
+                scene.remove(rasengan);
+                console.log("Previous Rasengan model removed from scene.");
+            }
+            removeGlowFromRasengan(); 
+            rasengan = null;          
+            rasenganBasePosition = null; // Correctly clear base position for the old model
 
-                console.log("Main Lamp ON:", lampOn, "Sphere Lamp ON:", centerSphereLightOn);
-                break;
-            case "monitor":
-                desktopUI.style.display = 'block'; monitorOpen = true; cameraLocked = true;
-                if (document.pointerLockElement) document.exitPointerLock();
-                if (crosshair) crosshair.style.display = 'none';
-                if (S2Loaded && !S2Rendered && S2) { scene.add(S2); addGlowToS2(); S2Rendered = true; console.log('S2 rendered.'); }
-                break;
-            case "rasengan":
-                if (rasengan && rasengan.parent) { scene.remove(rasengan); removeGlowFromRasengan(); rasengan = null; }
-                const modelPath = isRasengan ? '../glb/rasengan.glb' : '../glb/rasengan.glb'; 
-                const newPos = isRasengan ? new THREE.Vector3(-8.8, 11.2, 13.9) : new THREE.Vector3(-8.8, 9.9, 13.9);
-                const newScale = isRasengan ? new THREE.Vector3(2.5, 2.5, 2.5) : null;
+            const modelToLoad = isRasengan ? 'rasenshuriken' : 'rasengan';
+            const modelPath = `../glb/${modelToLoad}.glb`;
+            const newPos = isRasengan ? new THREE.Vector3(-8.8, 11.2, 13.9) : new THREE.Vector3(-8.8, 9.9, 13.9); 
+            const newScale = isRasengan ? new THREE.Vector3(2.5, 2.5, 2.5) : null; 
 
-                loadDynamicModel(modelPath, newPos, newScale).then(model => {
-                    rasengan = model; scene.add(rasengan); addGlowToRasengan(); // This will now only activate the light
-                    console.log(isRasengan ? 'Rasenshuriken loaded.' : 'Rasengan loaded.');
-                    isRasengan = !isRasengan;
-                }).catch(e => console.error('Error loading new Rasengan/Shuriken:', e));
-                break;
-        }
+            console.log(`Preparing to load ${modelToLoad}. Current isRasengan flag (for next load): ${!isRasengan}`);
+
+            loadDynamicModel(modelPath, newPos, newScale).then(loadedModel => {
+                rasengan = loadedModel;
+                rasenganBasePosition = newPos.clone(); // Correctly set new base position for orbit
+                scene.add(rasengan);
+                addGlowToRasengan();
+                console.log(`${modelToLoad} loaded and added to scene. Glow on.`);
+                isRasengan = !isRasengan; 
+            }).catch(e => {
+                console.error(`Failed to load or process ${modelToLoad}:`, e);
+                // rasengan and rasenganBasePosition remain null
+            });
+            break;
     }
 });
 
@@ -440,7 +507,7 @@ function isChildOf(object, parentModel) {
     while (p) { if (p === parentModel) return true; p = p.parent; } return false;
 }
 
-let userMoveSpeed = 0.3; 
+let userMoveSpeed = 0.3;
 const userShiftMoveSpeed = 0.8;
 
 const move = { forward: false, backward: false, left: false, right: false };
@@ -449,29 +516,29 @@ window.addEventListener('keydown', e => {
     if (monitorOpen || (cameraLocked && e.key.toLowerCase() !== 't')) return;
     const key = e.key.toLowerCase();
     switch (key) {
-        case 'w': move.forward = true; break; 
+        case 'w': move.forward = true; break;
         case 's': move.backward = true; break;
-        case 'a': move.left = true; break; 
+        case 'a': move.left = true; break;
         case 'd': move.right = true; break;
-        case 'e': 
+        case 'e':
             if (gamaBunta && !isSpawning) {
-                if (gamaBuntaVisible) { 
-                    if (gamaBunta.parent) scene.remove(gamaBunta); 
-                    gamaBuntaVisible = false; 
-                    console.log('Gama Bunta dismissed.'); 
+                if (gamaBuntaVisible) {
+                    if (gamaBunta.parent) scene.remove(gamaBunta);
+                    gamaBuntaVisible = false;
+                    console.log('Gama Bunta dismissed.');
                 } else {
-                    isSpawning = true; 
+                    isSpawning = true;
                     console.log('Summoning Gama Bunta at fixed position...');
-                    createSmokeEffect(gamaBunta.position, () => { 
-                        scene.add(gamaBunta); 
-                        gamaBuntaVisible = true; 
-                        isSpawning = false; 
-                        console.log('Gama Bunta appeared.'); 
+                    createSmokeEffect(gamaBunta.position, () => {
+                        scene.add(gamaBunta);
+                        gamaBuntaVisible = true;
+                        isSpawning = false;
+                        console.log('Gama Bunta appeared.');
                     });
                 }
             } break;
-        case 'shift': 
-            userMoveSpeed = userShiftMoveSpeed; 
+        case 'shift':
+            userMoveSpeed = userShiftMoveSpeed;
             break;
     }
 });
@@ -479,16 +546,16 @@ window.addEventListener('keyup', e => {
     if (e.key.toLowerCase() !== 't' && (monitorOpen || cameraLocked)) return;
     const key = e.key.toLowerCase();
     switch (key) {
-        case 'w': move.forward = false; break; 
+        case 'w': move.forward = false; break;
         case 's': move.backward = false; break;
-        case 'a': move.left = false; break; 
+        case 'a': move.left = false; break;
         case 'd': move.right = false; break;
         case 't':
             if (isFirstPositionActive) { camera.position.set(2, 12, 5); camera.lookAt(0, 3, 0); }
             else { camera.position.set(-350, -65, 50); camera.lookAt(0, 0, 0); }
             isFirstPositionActive = !isFirstPositionActive; console.log("Cam Toggled. FP Active:", isFirstPositionActive);
             break;
-        case 'shift': 
+        case 'shift':
             userMoveSpeed = 0.3; 
             break;
     }
@@ -498,74 +565,90 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-let glowTime = 0; const clock = new THREE.Clock(); 
+let glowTime = 0; const clock = new THREE.Clock();
 
 function animate() {
-    requestAnimationFrame(animate); 
-    const delta = clock.getDelta(); 
+    requestAnimationFrame(animate);
+    const delta = clock.getDelta();
 
     if (isPointerLocked && !cameraLocked) {
         const camForward = new THREE.Vector3();
         camera.getWorldDirection(camForward);
-        camForward.y = 0; 
+        camForward.y = 0;
         camForward.normalize();
 
         const camRight = new THREE.Vector3();
-        camRight.crossVectors(camera.up, camForward).normalize(); 
+        camRight.crossVectors(camera.up, camForward).normalize(); // Should be camera.up, not camForward.cross(camera.up)
         
         const effectiveSpeed = userMoveSpeed; 
         const moveDirection = new THREE.Vector3();
 
         if (move.forward) moveDirection.add(camForward);
         if (move.backward) moveDirection.sub(camForward);
-        // Corrected A/D movement: A (left) should subtract right, D (right) should add right
-        if (move.left) moveDirection.add(camRight); // Standard: Subtract right vector to move left
-        if (move.right) moveDirection.sub(camRight); // Standard: Add right vector to move right
+        if (move.left) moveDirection.add(camRight); // Corrected: Add for left
+        if (move.right) moveDirection.sub(camRight); // Corrected: Subtract for right
         
         if (moveDirection.lengthSq() > 0) {
             moveDirection.normalize();
-            // Applying user's original speed logic: effectiveSpeed is units per frame.
-            // No delta, no moveMultiplier in this final step.
-            camera.position.addScaledVector(moveDirection, effectiveSpeed); 
+            camera.position.addScaledVector(moveDirection, effectiveSpeed); // Using effectiveSpeed directly
         }
     }
 
     if (rasengan && rasenganSpinning) {
+        // Local spin
         const spinDelta = rasenganSpeed * delta * 60; 
-        rasengan.rotation.y += spinDelta; 
+        rasengan.rotation.y += spinDelta;
         rasengan.rotation.x += spinDelta * 0.2;
-        // No rasenganGlowMeshes to update rotation for
+
+        // Circular orbit
+        if (rasenganBasePosition) { 
+            rasenganOrbitAngle += rasenganOrbitSpeed * delta;
+            rasengan.position.x = rasenganBasePosition.x + rasenganOrbitRadius * Math.cos(rasenganOrbitAngle);
+            rasengan.position.z = rasenganBasePosition.z + rasenganOrbitRadius * Math.sin(rasenganOrbitAngle);
+            rasengan.position.y = rasenganBasePosition.y; // + Math.sin(rasenganOrbitAngle * 2) * 0.5; // Optional Y bob
+        } else if (rasenganSpinning) {
+            // console.warn("Rasengan spinning but no base position for orbit.");
+        }
     }
     glowTime += delta;
-    
+
     const updateGlowEffect = (glowMeshes, baseOpacity, opacityVar, baseScale, scaleVar, timeMult, lightObj, baseIntensity, intensityVar) => {
-        if (lightObj && (lightObj.visible || intensityVar !==0)) { // Only update light if visible or animated
+        if (lightObj && (lightObj.visible || intensityVar !==0)) { // Check lightObj.visible before accessing intensity for safety
              lightObj.intensity = baseIntensity + Math.sin(glowTime * timeMult) * intensityVar;
         }
-        if (glowMeshes.length > 0) { // Only update meshes if they exist
+        if (glowMeshes.length > 0) {
             const currentOpacity = baseOpacity + Math.sin(glowTime * timeMult) * opacityVar;
-            const currentScaleFactor = baseScale + Math.sin(glowTime * (timeMult + 0.5)) * scaleVar; 
+            const currentScaleFactor = baseScale + Math.sin(glowTime * (timeMult + 0.5)) * scaleVar; // Adjusted time for scale
             
-            glowMeshes.forEach(gm => { 
-                gm.material.opacity = currentOpacity; 
-                gm.scale.set(currentScaleFactor, currentScaleFactor, currentScaleFactor);
+            glowMeshes.forEach(gm => {
+                gm.material.opacity = currentOpacity;
+                // This assumes glow meshes are scaled relative to 1 initially, then multiplied by currentScaleFactor.
+                // If createGlowMesh applies parent scale * scaleFactor, this is fine.
+                // For more robust relative scaling, one might store original scale and apply currentScaleFactor to that.
+                // However, current method should work if original scale is 1 or if createGlowMesh handles it.
+                gm.scale.set(currentScaleFactor, currentScaleFactor, currentScaleFactor); 
             });
         }
     };
 
     updateGlowEffect(s2GlowMeshes, 0.3, 0.2, 1.06, 0.02, 2, s2GlowLight, 1.5, 0.8);
-    
-    // For Rasengan, rasenganGlowMeshes is empty. Only light might be affected if intensityVar was non-zero.
+
     if (rasengan) { 
-        updateGlowEffect(rasenganGlowMeshes, 0.5, 0, 1.08, 0.03, 3, rasenganGlowLight, 1.5, 0);
-        if (rasengan.parent && rasenganGlowLight.visible) rasenganGlowLight.position.setFromMatrixPosition(rasengan.matrixWorld);
+        updateGlowEffect(rasenganGlowMeshes, 0, 0, 1, 0, 3, rasenganGlowLight, 50, 25); // Assuming no visual glow mesh for rasengan, just light
+        if (rasenganGlowLight.visible) { 
+             rasenganGlowLight.position.copy(rasengan.position);
+        }
+    } else { 
+        if (rasenganGlowLight.visible) {
+            rasenganGlowLight.visible = false;
+        }
     }
-    
-    if (susanooModel && susanooVisible) { 
+
+    if (susanooModel && susanooVisible) {
         updateGlowEffect(susanooGlowMeshes, 0.6, 0, 1.05, 0.025, 1.5, susanooGlowLight, 3.0, 0);
         if (susanooModel.parent && susanooGlowLight.visible) susanooGlowLight.position.setFromMatrixPosition(susanooModel.matrixWorld);
     }
-    
+
     if (S2 && S2.parent && s2GlowLight.visible) s2GlowLight.position.setFromMatrixPosition(S2.matrixWorld);
 
     updateSmokeEffect();
@@ -573,5 +656,6 @@ function animate() {
 }
 document.addEventListener('DOMContentLoaded', () => {
     if (crosshair) crosshair.style.display = 'none';
+    userMoveSpeed = 0.3; // Ensure userMoveSpeed is initialized before animate might use it
     animate();
 });
